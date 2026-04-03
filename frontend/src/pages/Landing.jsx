@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/landing/Navbar';
 import Footer from '../components/landing/Footer';
+import StatsCarousel from '../components/landing/StatsCarousel';
 import headerImg from '../assets/header.png';
 import mainVid from '../assets/main_vid.mp4';
 import searchVid from '../assets/search_vid.mp4';
@@ -11,6 +12,7 @@ import viralVid from '../assets/viral_vid.mp4';
    GLOBAL STYLES (injected via <style> in JSX)
 ───────────────────────────────────────────────────────────────────────────── */
 const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Anton&display=swap');
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap');
 
   /* Clash Display via CDN */
@@ -447,35 +449,50 @@ export default function Landing() {
    *  Scrolling back up reverses everything automatically.
    */
   useEffect(() => {
+    let currentScroll = window.scrollY;
+    let targetScroll = window.scrollY;
+    let rafId;
+
     const onScroll = () => {
-      if (!headerImgRef.current) return;
-      const scrollY = window.scrollY;
-      const vh = window.innerHeight;
+      targetScroll = window.scrollY;
+    };
 
-      const ROTATE_END = vh;           // scrollY at which rotation completes (90°)
-      const FADE_END = vh * 1.8;     // scrollY at which image is fully hidden
+    const update = () => {
+      // Lerp (smooth interpolation)
+      // The 0.08 factor determines how loose/smooth the physical spring is
+      currentScroll += (targetScroll - currentScroll) * 0.08;
+      
+      if (headerImgRef.current) {
+        const vh = window.innerHeight;
+        const ROTATE_END = vh;
+        const FADE_END = vh * 1.8;
 
-      if (scrollY <= ROTATE_END) {
-        /* ── Phase 1: rotate 0 → 90° ── */
-        const t = scrollY / ROTATE_END;            // 0 to 1
-        const deg = t * 90;
-        const scl = 1 - t * 0.06;
-        headerImgRef.current.style.transform = `rotate(${deg}deg) scale(${scl})`;
-        headerImgRef.current.style.opacity = '1';
-      } else if (scrollY <= FADE_END) {
-        /* ── Phase 2: fade 1 → 0 at 90° ── */
-        const t = (scrollY - ROTATE_END) / (FADE_END - ROTATE_END); // 0 to 1
-        const opc = Math.max(0, 1 - t);
-        headerImgRef.current.style.transform = 'rotate(90deg) scale(0.94)';
-        headerImgRef.current.style.opacity = opc;
-      } else {
-        /* ── Fully scrolled past ── */
-        headerImgRef.current.style.opacity = '0';
+        if (currentScroll <= ROTATE_END) {
+          const t = Math.max(0, currentScroll / ROTATE_END);
+          const deg = t * 90;
+          const scl = 1 + t * 1.5;
+          headerImgRef.current.style.transform = `rotate(${deg}deg) scale(${scl})`;
+          headerImgRef.current.style.opacity = '1';
+        } else if (currentScroll <= FADE_END) {
+          const t = (currentScroll - ROTATE_END) / (FADE_END - ROTATE_END);
+          const opc = Math.max(0, 1 - t);
+          headerImgRef.current.style.transform = 'rotate(90deg) scale(2.5)';
+          headerImgRef.current.style.opacity = opc;
+        } else {
+          headerImgRef.current.style.opacity = '0';
+        }
       }
+
+      rafId = requestAnimationFrame(update);
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
+    rafId = requestAnimationFrame(update);
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   /* ─────────────────────────────────────────────────────────────────────────────
@@ -585,8 +602,8 @@ export default function Landing() {
                 opacity: 1,
                 transform: 'rotate(0deg) scale(1)',
                 transformOrigin: 'center center',
-                /* Smooth but snappy — no lag on fast scroll */
-                transition: 'transform 0.06s linear, opacity 0.06s linear',
+                /* Remove CSS transitions because our Javascript RequestAnimationFrame lerp engine assumes direct real-time control */
+                transition: 'none',
                 filter: 'brightness(0.82) saturate(1.45) contrast(1.08)',
                 willChange: 'transform, opacity',
               }}
@@ -831,11 +848,11 @@ export default function Landing() {
 
             {/* Right: Macbook Frame */}
             <div style={{ flex: '1 1 500px', position: 'relative' }}>
-              {/* Backglow to make the macbook pop slightly */}
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '130%', height: '130%', background: 'radial-gradient(circle, rgba(255,61,110,0.18) 0%, transparent 60%)', filter: 'blur(40px)', pointerEvents: 'none', animation: 'macbookGlow 4s ease-in-out infinite' }} />
+              {/* Core Vibrant Backglow */}
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '150%', height: '150%', background: 'radial-gradient(circle, rgba(255,61,110,0.45) 0%, rgba(255,61,110,0.1) 40%, transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none', animation: 'macbookGlow 4s ease-in-out infinite' }} />
 
               {/* The Macbook Structure */}
-              <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#1c1c1e', borderRadius: '16px 16px 4px 4px', border: '2px solid #3a3a3c', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+              <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#1c1c1e', borderRadius: '16px 16px 4px 4px', border: '2px solid #5a3a4c', boxShadow: '0 25px 50px rgba(0,0,0,0.8), 0 0 60px rgba(255,61,110,0.35), inset 0 0 20px rgba(255,61,110,0.1)', overflow: 'hidden' }}>
                 {/* Top Notch / Nav Bar */}
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '24px', background: '#2c2c2e', borderBottom: '1px solid #3a3a3c', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '6px', zIndex: 10 }}>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ff5f56' }} />
@@ -876,11 +893,11 @@ export default function Landing() {
 
             {/* Left: Macbook Frame */}
             <div style={{ flex: '1 1 500px', position: 'relative' }}>
-              {/* Backglow to make the macbook pop slightly */}
-              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '130%', height: '130%', background: 'radial-gradient(circle, rgba(0,245,255,0.18) 0%, transparent 60%)', filter: 'blur(40px)', pointerEvents: 'none', animation: 'macbookGlow 4s ease-in-out infinite 2s' }} />
+              {/* Core Vibrant Backglow */}
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '150%', height: '150%', background: 'radial-gradient(circle, rgba(0,245,255,0.45) 0%, rgba(0,245,255,0.1) 40%, transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none', animation: 'macbookGlow 4s ease-in-out infinite 2s' }} />
 
               {/* The Macbook Structure */}
-              <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#1c1c1e', borderRadius: '16px 16px 4px 4px', border: '2px solid #3a3a3c', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+              <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#1c1c1e', borderRadius: '16px 16px 4px 4px', border: '2px solid #3a5a5c', boxShadow: '0 25px 50px rgba(0,0,0,0.8), 0 0 60px rgba(0,245,255,0.35), inset 0 0 20px rgba(0,245,255,0.1)', overflow: 'hidden' }}>
                 {/* Top Notch / Nav Bar */}
                 <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '24px', background: '#2c2c2e', borderBottom: '1px solid #3a3a3c', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '6px', zIndex: 10 }}>
                   <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ff5f56' }} />
@@ -907,6 +924,11 @@ export default function Landing() {
 
         </div>
       </section>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          STATS CAROUSEL SECTION
+      ══════════════════════════════════════════════════════════════════════ */}
+      <StatsCarousel />
 
       {/* ══════════════════════════════════════════════════════════════════════
           CTA / BOTTOM SECTION
