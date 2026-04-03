@@ -147,9 +147,9 @@ async def get_spotify_trends():
                 
             access_token = token_res.json().get("access_token")
             
-            # Spotify's Search API is stable for fetching popular/viral tracks
+            # Search for recent tracks to find popular ones
             playlist_res = await client.get(
-                "https://api.spotify.com/v1/search?q=top+hits+viral&type=track&limit=6",
+                "https://api.spotify.com/v1/search?q=year:2024-2026&type=track&limit=50",
                 headers={"Authorization": f"Bearer {access_token}"}
             )
             
@@ -158,26 +158,29 @@ async def get_spotify_trends():
                 return JSONResponse(content={"items": _mock_spotify_viral(), "mocked": True})
                 
             payload = playlist_res.json()
-            items = []
+            all_items = []
             
-            # The search payload has a "tracks.items" structure
             tracks_data = payload.get("tracks", {}).get("items", [])
             for track in tracks_data:
                 if not track: continue
                 
                 album = track.get("album", {})
                 images = album.get("images", [])
-                image_url = images[0].get("url") if images else ""
+                image_url = images[0].get("url") if images else "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=100&h=100&fit=crop"
                 
                 artists = ", ".join([a.get("name") for a in track.get("artists", [])])
                 
-                items.append({
+                all_items.append({
                     "id": track.get("id"),
                     "title": track.get("name"),
                     "artist": artists,
                     "popularity": track.get("popularity", 0),
                     "image": image_url
                 })
+                
+            # Sort by popularity descending and take top 6
+            all_items.sort(key=lambda x: x["popularity"], reverse=True)
+            items = all_items[:6]
                 
             return JSONResponse(content={"items": items, "mocked": False})
     except Exception as e:
