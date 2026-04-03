@@ -56,7 +56,8 @@ async def get_youtube_analytics(
             content={"message": error.message, "details": error.payload},
         )
     except Exception as error:
+        import traceback
         return JSONResponse(
             status_code=500,
-            content={"message": "Failed to fetch YouTube analytics.", "details": str(error)},
+            content={"message": "Failed to fetch YouTube analytics.", "details": str(error), "traceback": traceback.format_exc()},
         )
