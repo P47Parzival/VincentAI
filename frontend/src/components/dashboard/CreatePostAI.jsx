@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play, Video } from 'lucide-react';
+import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play, Video, Hash, Copy } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
@@ -16,6 +17,22 @@ export default function CreatePostAI() {
   const [isVideoFinished, setIsVideoFinished] = useState(false);
   const [videoLogs, setVideoLogs] = useState([]);
   const logsEndRef = useRef({});
+  const [editableDraft, setEditableDraft] = useState('');
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (agentState.draft) {
+      setEditableDraft(agentState.draft);
+    }
+  }, [agentState.draft]);
+
+  const handleCopy = () => {
+    if (!editableDraft) return;
+    navigator.clipboard.writeText(editableDraft);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const generatePost = () => {
     if (!description || !goal) return;
     setIsGenerating(true);
@@ -205,8 +222,7 @@ export default function CreatePostAI() {
                </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-6">
+            <div className="flex flex-col gap-6">
                     {/* Live Strategy Data */}
                     {(agentState.strategy || currentStepIndex >= getStepIndex('strategist')) && (
                         <div className="p-6 bg-[#8B5CF6]/5 backdrop-blur-md rounded-3xl border border-[#8B5CF6]/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden">
@@ -223,23 +239,71 @@ export default function CreatePostAI() {
                         <div className="p-6 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden">
                             {!agentState.research_data && <div className="absolute inset-0 bg-[#080808]/50 backdrop-blur-sm z-10 flex items-center justify-center text-[#00F5FF]/80 font-medium"><Loader2 className="animate-spin mr-2" size={18} /> Scraping the web...</div>}
                             <h3 className="font-bold text-white mb-3 flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}><Target size={18} className="text-[#00F5FF]"/> Web Research Findings</h3>
-                            <div className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#00F5FF transparent' }}>
-                                {agentState.research_data || "Waiting for data..."}
+                            <div className="text-sm text-gray-400 leading-relaxed max-h-[400px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#00F5FF transparent' }}>
+                                {agentState.research_data ? (
+                                     <ReactMarkdown 
+                                       components={{
+                                          h1: ({node, ...props}) => <h1 className="text-white font-bold text-lg mt-4 mb-2" {...props} />,
+                                          h2: ({node, ...props}) => <h2 className="text-[#00F5FF] font-bold text-base mt-4 mb-2" {...props} />,
+                                          h3: ({node, ...props}) => <h3 className="text-white font-semibold text-sm mt-3 mb-1" {...props} />,
+                                          p: ({node, ...props}) => <p className="mb-3" {...props} />,
+                                          ul: ({node, ...props}) => <ul className="list-disc pl-5 mb-3 space-y-1" {...props} />,
+                                          ol: ({node, ...props}) => <ol className="list-decimal pl-5 mb-3 space-y-1" {...props} />,
+                                          li: ({node, ...props}) => <li className="text-gray-300" {...props} />,
+                                          strong: ({node, ...props}) => <strong className="text-white font-bold" {...props} />,
+                                          a: ({node, ...props}) => <a className="text-[#8B5CF6] hover:underline" target="_blank" rel="noreferrer" {...props} />
+                                       }}
+                                     >
+                                        {agentState.research_data}
+                                     </ReactMarkdown>
+                                ) : "Waiting for data..."}
                             </div>
                         </div>
                     )}
-                </div>
 
-                <div className="space-y-6 h-full">
                     {/* Live Final Draft */}
                     {(agentState.draft || currentStepIndex >= getStepIndex('copywriter')) ? (
                         <div className="p-8 bg-gradient-to-br from-[#FF3D6E]/20 to-[#8B5CF6]/30 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-[0_0_40px_rgba(255,61,110,0.2)] text-white relative h-full">
                             {!agentState.draft && <div className="absolute inset-0 bg-[#080808]/80 backdrop-blur-xl z-10 flex items-center justify-center text-[#FF3D6E] font-medium rounded-[2rem]"><Loader2 className="animate-spin mr-2" size={18} /> Drafting Post Copy...</div>}
                             <div className="absolute top-4 right-4 bg-[#FF3D6E]/20 backdrop-blur border border-[#FF3D6E]/30 px-3 py-1 rounded-full text-xs font-bold text-white shadow-[0_0_12px_rgba(255,61,110,0.5)]">Copywriter Output</div>
-                            <h3 className="font-bold text-white mb-6 text-2xl drop-shadow-lg" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>Final Draft</h3>
-                            <div className="text-white font-medium whitespace-pre-wrap leading-relaxed pb-6 text-lg">
-                                {agentState.draft || "Waiting for copywriter..."}
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-bold text-white text-2xl drop-shadow-lg" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>Final Draft</h3>
+                                {agentState.draft && isFinished && (
+                                    <button 
+                                        onClick={handleCopy}
+                                        className="flex items-center gap-1.5 text-xs font-bold bg-white/10 hover:bg-white/20 border border-white/20 text-white px-3 py-1.5 rounded-lg transition-colors shadow-sm"
+                                    >
+                                        {copied ? <CheckCircle size={14} className="text-[#00F5FF]" /> : <Copy size={14} />}
+                                        {copied ? "Copied!" : "Copy"}
+                                    </button>
+                                )}
                             </div>
+                            
+                            {!agentState.draft ? (
+                                <div className="text-white font-medium whitespace-pre-wrap leading-relaxed pb-6 text-lg">
+                                    Waiting for copywriter...
+                                </div>
+                            ) : (
+                                <textarea
+                                    value={editableDraft}
+                                    onChange={(e) => setEditableDraft(e.target.value)}
+                                    className="w-full bg-[#080808]/40 border border-white/10 focus:border-[#FF3D6E]/50 focus:bg-[#080808]/80 text-white font-medium whitespace-pre-wrap leading-relaxed px-4 py-4 rounded-2xl text-[17px] outline-none resize-y min-h-[220px] shadow-inner font-sans mb-4 transition-all"
+                                    placeholder="Your AI generated copy will appear here..."
+                                />
+                            )}
+                            
+                            {agentState.hashtags && agentState.hashtags.length > 0 && (
+                                <div className="mb-6 pt-2 pb-2">
+                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5"><Hash size={14} className="text-[#00F5FF]"/> Generated Hashtags</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                        {agentState.hashtags.map((tag, i) => (
+                                            <span key={i} className="bg-[#00F5FF]/10 text-[#00F5FF] border border-[#00F5FF]/20 px-3 py-1.5 rounded-xl text-sm font-bold shadow-sm hover:bg-[#00F5FF]/20 transition-colors cursor-pointer">
+                                                {tag.startsWith('#') ? tag : `#${tag}`}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             
                             {agentState.draft && isFinished && (
                                 <div className="mt-6 pt-6 border-t border-white/10">
@@ -309,13 +373,12 @@ export default function CreatePostAI() {
                             )}
                         </div>
                     ) : (
-                        <div className="p-8 bg-white/5 backdrop-blur-md rounded-[2rem] border border-dashed border-white/10 flex flex-col items-center justify-center h-full min-h-[300px] text-gray-500">
+                        <div className="p-8 bg-white/5 backdrop-blur-md rounded-[2rem] border border-dashed border-white/10 flex flex-col items-center justify-center min-h-[300px] text-gray-500">
                             <Loader2 className="animate-spin mb-4 text-gray-600" size={40} />
                             <p className="font-medium uppercase tracking-widest text-sm">Copywriter is waiting for strategy...</p>
                         </div>
                     )}
                 </div>
-            </div>
 
             {isFinished && (
                 <div className="flex justify-center pt-8">

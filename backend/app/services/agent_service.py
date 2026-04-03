@@ -15,6 +15,7 @@ class AgentState(TypedDict):
     research_data: str
     strategy: str
     draft: str
+    hashtags: List[str]
 
 # Initialize LLM
 def get_llm():
@@ -62,8 +63,9 @@ async def research_node(state: AgentState):
         
         results_text = []
         for result in search_result.get("results", []):
-            results_text.append(f"Title: {result['title']}\nContent: {result['content']}")
-        research_summary = "\n\n".join(results_text)
+            url = result.get('url', '#')
+            results_text.append(f"### {result['title']}\n{result['content']}\n\n**Source:** [{url}]({url})")
+        research_summary = "\n\n---\n\n".join(results_text)
     except Exception as e:
         research_summary = f"Could not fetch live research. Error: {str(e)}"
         
@@ -91,20 +93,44 @@ async def strategist_node(state: AgentState):
     return {"strategy": response.content}
 
 async def copywriter_node(state: AgentState):
-    llm = get_llm()
+    llm = get_llm().with_config({"temperature": 0.5}) # slightly less creative for stable JSON
     prompt = f"""
     You are a world-class Copywriter Agent.
     Strategy: {state['strategy']}
     Goal: {state['social_goal']}
     
-    Draft the final social media post. Include an engaging hook, the main body, and relevant hashtags.
-    Return ONLY the final post content. Do not include any meta-commentary, just the draft itself ready to copy/paste.
+    Draft the final social media post. Include an engaging hook and the main body.
+    DO NOT include hashtags inside the main draft text!
+    Instead, generate a discrete list of highly relevant, trending hashtags based on the content.
+    
+    Return your response STRICTLY as a JSON object with the following schema:
+    {{
+      "draft_text": "The main body of the post here...",
+      "hashtags": ["#marketing", "#example"]
+    }}
     """
     response = await llm.ainvoke([
-        SystemMessage(content="You are an expert copywriter."), 
+        SystemMessage(content="You are an expert copywriter. You must ONLY output a valid JSON object."), 
         HumanMessage(content=prompt)
     ])
-    return {"draft": response.content}
+    
+    content = response.content.strip()
+    if content.startswith("```json"):
+        content = content[7:-3].strip()
+    elif content.startswith("```"):
+        content = content[3:-3].strip()
+        
+    try:
+        data = json.loads(content)
+        draft = data.get("draft_text", "")
+        hashtags = data.get("hashtags", [])
+        if not draft:
+            draft = content # Fallback if JSON parsed but schema was wrong
+    except Exception:
+        draft = content
+        hashtags = []
+        
+    return {"draft": draft, "hashtags": hashtags}
 
 # Build Graph
 workflow = StateGraph(AgentState)
