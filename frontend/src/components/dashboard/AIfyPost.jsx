@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, AlertCircle, Video, Clock, CheckCircle2, Play, Activity } from 'lucide-react';
-
+import { Search, Sparkles, AlertCircle, Video, Clock, CheckCircle2, Play, Activity, Heart, MessageCircle, TrendingUp } from 'lucide-react';
 export default function AIfyPost() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -77,6 +76,11 @@ export default function AIfyPost() {
                  </h3>
                  <p className="text-slate-700 text-lg whitespace-pre-wrap flex-1">{result.original_text}</p>
                  
+                 <div className="flex gap-4 mt-4 text-slate-500 font-bold border-t border-slate-100 pt-4">
+                    <span className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg text-sm"><Heart size={16} className="text-rose-500 fill-rose-500/20"/> {result.original_likes?.toLocaleString() || 0}</span>
+                    <span className="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-lg text-sm"><MessageCircle size={16} className="text-blue-500 fill-blue-500/20"/> {result.original_comments?.toLocaleString() || 0}</span>
+                 </div>
+                 
                  {result.scrape_error && (
                     <div className="mt-4 bg-amber-50 text-amber-700 p-3 rounded-xl border border-amber-200 text-sm">
                        <p className="font-bold mb-1 flex items-center gap-1"><AlertCircle size={14}/> Live Apify Scrape Failed (Fired Clean Mock)</p>
@@ -100,8 +104,13 @@ export default function AIfyPost() {
                  <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
                     <Sparkles size={120} />
                  </div>
-                 <h3 className="text-sm font-bold text-purple-200 uppercase tracking-wider mb-4 flex items-center gap-2 relative z-10">
-                    AIfied Replacement Caption
+                 <h3 className="text-sm font-bold text-purple-200 uppercase tracking-wider mb-4 flex items-center justify-between relative z-10 w-full">
+                    <span className="flex items-center gap-2">AIfied Replacement</span>
+                    <div className="flex gap-3 text-white font-bold bg-white/10 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs md:text-sm">
+                       <span className="flex items-center gap-1 text-green-300"><TrendingUp size={14} className="mr-1 shadow-sm"/></span>
+                       <span className="flex items-center gap-1 text-rose-200"><Heart size={14} className="fill-rose-300/30"/> {result.projected_likes?.toLocaleString() || 0}</span>
+                       <span className="flex items-center gap-1 text-blue-200"><MessageCircle size={14} className="fill-blue-300/30"/> {result.projected_comments?.toLocaleString() || 0}</span>
+                    </div>
                  </h3>
                  <p className="text-white text-lg md:text-xl font-medium leading-relaxed whitespace-pre-wrap relative z-10">
                     {result.enhanced_text}

@@ -83,6 +83,10 @@ async def analyze_url(req: AnalyzeURLRequest):
     scraped_text = ""
     domain = "unknown"
     scrape_error = None
+    likes = 0
+    comments = 0
+    projected_likes = 0
+    projected_comments = 0
     
     if "instagram.com" in req.url: domain = "instagram"
     elif "linkedin.com" in req.url: domain = "linkedin"
@@ -113,7 +117,18 @@ async def analyze_url(req: AnalyzeURLRequest):
                 if res.status_code in (200, 201):
                     data = res.json()
                     if len(data) > 0:
-                        scraped_text = data[0].get("caption", data[0].get("text", str(data[0])))
+                        first_item = data[0]
+                        scraped_text = first_item.get("caption", first_item.get("text", first_item.get("full_text", str(first_item))))
+                        
+                        # Agnostic extraction of engagement metrics across multiple platforms
+                        likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", 0))))
+                        comments = first_item.get("commentsCount", first_item.get("commentCount", first_item.get("replies", first_item.get("reply_count", 0))))
+                        
+                        # Clean up types
+                        try: likes = int(likes)
+                        except: likes = 0
+                        try: comments = int(comments)
+                        except: comments = 0
                     else:
                         scrape_error = "Apify returned an empty dataset []."
                         print(scrape_error)
@@ -140,9 +155,14 @@ async def analyze_url(req: AnalyzeURLRequest):
         prompt = f"""You are an elite Digital Marketing AI. Analyze the following post content:
 "{scraped_text}"
 
-You must output a JSON object with EXACTLY two keys:
+Current Engagement:
+Likes: {likes}
+Comments: {comments}
+
+You must output a JSON object with EXACTLY three keys:
 1. "enhanced_text": A viral, beautifully formatted, high-converting rewrite of this content.
-2. "video_analysis": An array of objects to simulate frame-by-frame engagement advice for the video. Give exactly 3 actionable tips spaced by timestamps. Format: [{{"timestamp": "0:05", "issue": "...", "tip": "..."}}]
+2. "projected_engagement": A JSON object with EXACTLY two keys: "projected_likes" and "projected_comments", mapping to logical numeric values showcasing a realistic boost in engagement using your new text.
+3. "video_analysis": An array of exactly 3 objects simulating frame-by-frame engagement advice for an attached video. Format: [{{"timestamp": "0:05", "issue": "...", "tip": "..."}}]
 
 Return ONLY a raw, pure JSON object. No Markdown wrappers.
 """
@@ -152,7 +172,7 @@ Return ONLY a raw, pure JSON object. No Markdown wrappers.
                     "https://api.groq.com/openai/v1/chat/completions",
                     headers={"Authorization": f"Bearer {groq_api_key}"},
                     json={
-                        "model": "llama3-70b-8192",
+                        "model": "llama-3.3-70b-versatile",
                         "messages": [{"role": "user", "content": prompt}],
                         "temperature": 0.7,
                         "response_format": {"type": "json_object"}
@@ -162,18 +182,32 @@ Return ONLY a raw, pure JSON object. No Markdown wrappers.
                 if g_res.status_code == 200:
                     content = g_res.json()["choices"][0]["message"]["content"]
                     try:
-                        parsed = json.loads(content)
+                        # strip aggressive markdown that Groq sometimes forces despite json_object
+                        clean = content.replace("```json", "").replace("```", "").strip()
+                        parsed = json.loads(clean)
+                        
                         enhanced_text = parsed.get("enhanced_text", "")
                         video_frames = parsed.get("video_analysis", [])
-                    except json.JSONDecodeError:
-                        enhanced_text = content
+                        proj = parsed.get("projected_engagement", {})
+                        
+                        projected_likes = proj.get("projected_likes", int(likes * 1.5) if likes > 0 else 500)
+                        projected_comments = proj.get("projected_comments", int(comments * 1.5) if comments > 0 else 50)
+                    except json.JSONDecodeError as decode_e:
+                        print("Groq JSON parsing failed:", decode_e)
+                        enhanced_text = content # Graceful content fallback
+                else:
+                    print("Groq API Error:", g_res.status_code, g_res.text)
         except Exception as e:
             print("Groq rewrite failed:", str(e))
             
     return {
         "platform": domain, 
         "original_text": scraped_text, 
+        "original_likes": likes,
+        "original_comments": comments,
         "enhanced_text": enhanced_text, 
+        "projected_likes": projected_likes,
+        "projected_comments": projected_comments,
         "video_analysis": video_frames,
         "scrape_error": scrape_error
     }
