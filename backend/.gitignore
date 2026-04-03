@@ -1,6 +1,6 @@
 .env
 venv/
-app/__py*
-app/api/__py*
-app/core/__py*
-app/services/__py*
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
