@@ -1,82 +1,118 @@
-import asyncio
+"""
+Instagram Analytics via Apify actor: apify/instagram-scraper
+Strategy:
+ - Call with resultsType="details" and directUrls=[profile_url]
+   → returns one item per profile: { followersCount, postsCount, fullName,
+     profilePicUrl, biography, latestPosts: [...] }
+ - latestPosts embedded in the profile item contains recent post data
+"""
+
 import os
 from typing import Any
-
 import httpx
 
-from app.core.http import fetch_json, parse_number
+
+async def _run_apify(actor_path: str, payload: dict, token: str) -> list:
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        res = await client.post(
+            f"https://api.apify.com/v2/acts/{actor_path}/run-sync-get-dataset-items",
+            params={"token": token},
+            json=payload,
+        )
+    print(f"[APIFY {actor_path}] status={res.status_code}")
+    if res.status_code not in (200, 201):
+        raise ValueError(f"Apify HTTP {res.status_code}: {res.text[:400]}")
+    data = res.json()
+    if not isinstance(data, list):
+        raise ValueError(f"Unexpected Apify response: {str(data)[:300]}")
+    if data:
+        print(f"[APIFY {actor_path}] items={len(data)}, sample_keys={list(data[0].keys())[:18]}")
+    else:
+        print(f"[APIFY {actor_path}] EMPTY RESULT")
+    return data
+
+
+def _safe_int(val) -> int:
+    try:
+        return int(str(val).replace(",", "").replace("+", "").strip())
+    except Exception:
+        return 0
 
 
 async def fetch_instagram_analytics(
-    ig_user_id_override: str | None,
+    username_override: str | None,
     media_limit: int,
 ) -> dict[str, Any]:
-    access_token = os.getenv("INSTAGRAM_ACCESS_TOKEN", "")
-    ig_user_id = ig_user_id_override or os.getenv("INSTAGRAM_IG_USER_ID", "")
+    apify_token = os.getenv("APIFY_API_TOKEN", "")
+    username = (username_override or os.getenv("INSTAGRAM_DEFAULT_USERNAME", "")).lstrip("@")
 
-    if not access_token:
-        raise ValueError("Missing INSTAGRAM_ACCESS_TOKEN in backend environment.")
-
-    if not ig_user_id:
+    if not apify_token:
+        raise ValueError("Missing APIFY_API_TOKEN in backend environment.")
+    if not username:
         raise ValueError(
-            "Missing Instagram user ID. Provide igUserId query param or INSTAGRAM_IG_USER_ID in backend environment."
+            "Missing Instagram username. "
+            "Provide ?username= query param or set INSTAGRAM_DEFAULT_USERNAME in .env"
         )
 
-    graph_base = "https://graph.facebook.com/v20.0"
+    profile_url = f"https://www.instagram.com/{username}/"
 
-    profile_params = {
-        "fields": "id,username,followers_count,media_count",
-        "access_token": access_token,
-    }
-    insights_params = {
-        "metric": "reach,impressions",
-        "period": "day",
-        "access_token": access_token,
-    }
-    media_params = {
-        "fields": (
-            "id,caption,media_type,media_url,thumbnail_url,timestamp,"
-            "permalink,like_count,comments_count"
-        ),
-        "limit": media_limit,
-        "access_token": access_token,
-    }
+    # resultsType="details" returns the full profile object with latestPosts embedded
+    data = await _run_apify("apify~instagram-scraper", {
+        "directUrls": [profile_url],
+        "resultsType": "details",
+        "resultsLimit": 1,
+    }, apify_token)
 
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        profile_task = fetch_json(client, f"{graph_base}/{ig_user_id}", profile_params)
-        insights_task = fetch_json(client, f"{graph_base}/{ig_user_id}/insights", insights_params)
-        media_task = fetch_json(client, f"{graph_base}/{ig_user_id}/media", media_params)
+    if not data:
+        raise ValueError(f"Apify returned no data for @{username}. The account may be private.")
 
-        profile, insights, media = await asyncio.gather(profile_task, insights_task, media_task)
+    profile = data[0]
+    print(f"[IG DEBUG] followersCount={profile.get('followersCount')} postsCount={profile.get('postsCount')}")
 
-    insight_data = insights.get("data") if isinstance(insights.get("data"), list) else []
+    followers   = _safe_int(profile.get("followersCount") or profile.get("edge_followed_by", {}).get("count") or 0)
+    posts_count = _safe_int(profile.get("postsCount") or profile.get("mediaCount") or 0)
+    full_name   = profile.get("fullName") or profile.get("full_name") or username
+    bio         = profile.get("biography") or profile.get("bio") or ""
+    pic_url     = profile.get("profilePicUrl") or profile.get("profilePicUrlHD")
 
-    def latest_metric(metric_name: str) -> int | float:
-        for item in insight_data:
-            if item.get("name") == metric_name:
-                values = item.get("values") if isinstance(item.get("values"), list) else []
-                if values:
-                    return parse_number(values[-1].get("value"), 0)
-        return 0
+    # latestPosts is embedded inside the details result
+    latest_posts = profile.get("latestPosts") or profile.get("edge_owner_to_timeline_media", {}).get("edges") or []
+    items = []
+    for post in latest_posts[:media_limit]:
+        # Handle both flat post objects and GraphQL edge wrappers
+        if "node" in post:
+            post = post["node"]
+        likes    = _safe_int(post.get("likesCount") or post.get("edge_media_preview_like", {}).get("count") or 0)
+        comments = _safe_int(post.get("commentsCount") or post.get("edge_media_to_comment", {}).get("count") or 0)
+        items.append({
+            "id"            : post.get("id") or post.get("shortCode"),
+            "caption"       : post.get("caption") or post.get("edge_media_to_caption", {}).get("edges", [{}])[0].get("node", {}).get("text") or "(no caption)",
+            "publishedAt"   : post.get("timestamp"),
+            "like_count"    : likes,
+            "comments_count": comments,
+            "media_url"     : post.get("displayUrl") or post.get("thumbnail_url"),
+            "media_type"    : (post.get("type") or "IMAGE").upper(),
+            "permalink"     : post.get("url") or f"https://instagram.com/p/{post.get('shortCode', '')}",
+        })
 
-    latest_reach = latest_metric("reach")
-    latest_impressions = latest_metric("impressions")
-
-    media_items = media.get("data") if isinstance(media.get("data"), list) else []
-    reels_uploaded = sum(1 for item in media_items if item.get("media_type") == "REELS")
+    reels_count = sum(1 for i in items if "VIDEO" in i["media_type"] or "REEL" in i["media_type"])
 
     return {
         "platform": "instagram",
         "account": {
-            "id": profile.get("id"),
-            "username": profile.get("username"),
+            "id"               : username,
+            "username"         : username,
+            "name"             : full_name,
+            "bio"              : bio,
+            "profile_image_url": pic_url,
         },
         "metrics": {
-            "followersCount": parse_number(profile.get("followers_count"), 0),
-            "reach": latest_reach,
-            "impressions": latest_impressions,
-            "reelsUploaded": reels_uploaded,
-            "totalMediaUploaded": parse_number(profile.get("media_count"), 0),
+            "followersCount"    : followers,
+            "postsCount"        : posts_count,
+            "reelsUploaded"     : reels_count,
+            "totalMediaUploaded": posts_count,
+            "reach"             : None,
+            "impressions"       : None,
         },
-        "items": media_items,
+        "items": items,
     }

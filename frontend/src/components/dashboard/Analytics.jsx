@@ -30,7 +30,7 @@ const formatNumber = (value) => {
 export default function Analytics() {
   const [activePlatform, setActivePlatform] = useState('instagram');
   const [filters, setFilters] = useState({
-    instagram: { igUserId: '', mediaLimit: 10 },
+    instagram: { username: '', mediaLimit: 10 },
     youtube: { channelId: '', maxResults: 8 },
     twitter: { username: '', maxResults: 5 },
     linkedin: { profileUrl: '', maxResults: 5 }
@@ -306,11 +306,11 @@ export default function Analytics() {
         {activePlatform === 'instagram' ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <label className="block">
-              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Instagram User ID</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Instagram Username</span>
               <input
                 type="text"
-                value={filters.instagram.igUserId}
-                onChange={(event) => onFilterChange('instagram', 'igUserId', event.target.value)}
+                value={filters.instagram.username}
+                onChange={(event) => onFilterChange('instagram', 'username', event.target.value)}
                 placeholder="Optional if set in backend .env"
                 className="mt-2 w-full rounded-xl bg-[#080808]/50 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#FF3D6E]/50 focus:border-[#FF3D6E]/50 transition-colors placeholder-gray-600"
               />

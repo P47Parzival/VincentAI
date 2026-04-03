@@ -21,11 +21,11 @@ async def health() -> dict[str, str]:
 
 @router.get("/analytics/instagram")
 async def get_instagram_analytics(
-    igUserId: str | None = Query(default=None),
+    username: str | None = Query(default=None),
     mediaLimit: int = Query(default=10, ge=1, le=25),
 ) -> JSONResponse:
     try:
-        payload = await fetch_instagram_analytics(igUserId, mediaLimit)
+        payload = await fetch_instagram_analytics(username, mediaLimit)
         return JSONResponse(content=payload)
     except ValueError as error:
         return JSONResponse(status_code=400, content={"message": str(error)})

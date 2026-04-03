@@ -1,95 +1,143 @@
-import asyncio
+"""
+Twitter Analytics via Apify actor: apidojo/tweet-scraper
+Confirmed output schema (from official docs):
+{
+  "type": "tweet",
+  "id": "...",
+  "url": "...",
+  "text": "...",
+  "likeCount": 104121,
+  "retweetCount": 11311,
+  "replyCount": 6526,
+  "quoteCount": 2915,
+  "createdAt": "Fri Nov 24 17:49:36 +0000 2023",
+  "author": {
+    "type": "user",
+    "userName": "elonmusk",
+    "name": "Elon Musk",
+    "id": "44196397",
+    "followers": 172669889,   ← NESTED under author
+    "following": 538,
+    "profilePicture": "https://..."
+  }
+}
+NOTE: author.followers is NESTED, NOT a flat authorFollowers field.
+"""
+
 import os
 from typing import Any
-
 import httpx
 
-from app.core.http import fetch_json, parse_number
+
+async def _run_apify(actor_path: str, payload: dict, token: str) -> list:
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        res = await client.post(
+            f"https://api.apify.com/v2/acts/{actor_path}/run-sync-get-dataset-items",
+            params={"token": token},
+            json=payload,
+        )
+    print(f"[APIFY {actor_path}] status={res.status_code}")
+    if res.status_code not in (200, 201):
+        raise ValueError(f"Apify HTTP {res.status_code}: {res.text[:400]}")
+    data = res.json()
+    if not isinstance(data, list):
+        raise ValueError(f"Unexpected Apify response: {str(data)[:300]}")
+    if data:
+        print(f"[APIFY {actor_path}] items={len(data)}, sample_keys={list(data[0].keys())[:18]}")
+        author = data[0].get("author") or {}
+        print(f"[TWITTER DEBUG] author keys={list(author.keys())}")
+    else:
+        print(f"[APIFY {actor_path}] EMPTY RESULT")
+    return data
+
+
+def _safe_int(val) -> int:
+    try:
+        return int(str(val).replace(",", "").replace("+", "").strip())
+    except Exception:
+        return 0
 
 
 async def fetch_twitter_analytics(
     username_override: str | None,
     max_results: int,
 ) -> dict[str, Any]:
-    bearer_token = os.getenv("TWITTER_BEARER_TOKEN", "")
-    username = username_override or os.getenv("TWITTER_DEFAULT_USERNAME", "")
+    apify_token = os.getenv("APIFY_API_TOKEN", "")
+    username = (username_override or os.getenv("TWITTER_DEFAULT_USERNAME", "")).lstrip("@")
 
-    if not bearer_token:
-        raise ValueError("Missing TWITTER_BEARER_TOKEN in backend environment.")
-
+    if not apify_token:
+        raise ValueError("Missing APIFY_API_TOKEN in backend environment.")
     if not username:
         raise ValueError(
-            "Missing Twitter username. Provide username query param or TWITTER_DEFAULT_USERNAME in backend environment."
+            "Missing Twitter username. "
+            "Provide ?username= query param or set TWITTER_DEFAULT_USERNAME in .env"
         )
 
-    headers = {"Authorization": f"Bearer {bearer_token}"}
+    data = await _run_apify("apidojo~tweet-scraper", {
+        "searchTerms": [f"from:{username} -filter:retweets"],
+        "maxItems"   : max(max_results, 50),  # actor requires min 50
+        "sort"       : "Latest",
+    }, apify_token)
 
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        # Get user ID by username
-        user_url = f"https://api.twitter.com/2/users/by/username/{username}"
-        user_params = {"user.fields": "public_metrics,profile_image_url"}
-        user_data = await fetch_json(client, user_url, user_params, headers)
+    first = data[0] if data else {}
+    # author is a NESTED object: { userName, name, followers, following, profilePicture }
+    author = first.get("author") or {}
 
-        data = user_data.get("data", {})
-        if not data:
-            error_detail = user_data.get("errors", [{"detail": "Unknown API error"}])[0].get("detail")
-            raise ValueError(f"Could not find Twitter user '{username}'. Detail: {error_detail}")
+    followers = _safe_int(author.get("followers") or author.get("followersCount") or 0)
+    following = _safe_int(author.get("following") or author.get("followingCount") or 0)
+    name      = author.get("name") or author.get("userName") or username
+    pic       = author.get("profilePicture") or author.get("profilePic") or author.get("avatar")
 
-        user_id = data.get("id")
-        public_metrics = data.get("public_metrics", {})
-        
-        # Get user's recent tweets
-        tweets_url = f"https://api.twitter.com/2/users/{user_id}/tweets"
-        tweets_params = {
-            "max_results": max(5, min(max_results, 100)), # twitter api max_results min is 5
-            "tweet.fields": "public_metrics,created_at,attachments",
-            "expansions": "attachments.media_keys",
-            "media.fields": "url,preview_image_url,type"
-        }
-        
-        timeline_data = await fetch_json(client, tweets_url, tweets_params, headers)
+    # tweetCount: use statusesCount from author if available
+    tweet_count = _safe_int(
+        author.get("statusesCount") or
+        author.get("tweetsCount") or
+        len(data)
+    )
 
-    tweets = timeline_data.get("data") if isinstance(timeline_data.get("data"), list) else []
-    includes = timeline_data.get("includes", {})
-    media_pool = includes.get("media", [])
-    
-    media_map = {m.get("media_key"): m for m in media_pool}
-    
     items = []
-    
-    for t in tweets:
-        t_metrics = t.get("public_metrics", {})
-        
+    for tweet in data[:max_results]:
+        likes    = _safe_int(tweet.get("likeCount") or tweet.get("likes") or 0)
+        retweets = _safe_int(tweet.get("retweetCount") or tweet.get("retweets") or 0)
+        replies  = _safe_int(tweet.get("replyCount") or tweet.get("replies") or 0)
+
+        # Media thumbnail
         media_url = None
-        media_keys = t.get("attachments", {}).get("media_keys", [])
-        if media_keys:
-            key = media_keys[0]
-            if key in media_map:
-                media_url = media_map[key].get("url") or media_map[key].get("preview_image_url")
-        
+        ext_media = tweet.get("extendedEntities") or {}
+        media_list = ext_media.get("media") or tweet.get("media") or tweet.get("mediaUrls") or []
+        if isinstance(media_list, list) and media_list:
+            m = media_list[0]
+            if isinstance(m, dict):
+                media_url = m.get("media_url_https") or m.get("mediaUrl") or m.get("previewImageUrl") or m.get("url")
+            elif isinstance(m, str):
+                media_url = m
+
+        tweet_id = tweet.get("id") or tweet.get("tweetId")
         items.append({
-            "id": t.get("id"),
-            "caption": t.get("text"),
-            "publishedAt": t.get("created_at"),
-            "like_count": parse_number(t_metrics.get("like_count"), 0),
-            "retweet_count": parse_number(t_metrics.get("retweet_count"), 0),
-            "media_url": media_url,
-            "media_type": "TWEET",
+            "id"           : tweet_id,
+            "caption"      : tweet.get("text") or tweet.get("full_text") or "(no text)",
+            "publishedAt"  : tweet.get("createdAt") or tweet.get("created_at"),
+            "like_count"   : likes,
+            "retweet_count": retweets,
+            "reply_count"  : replies,
+            "media_url"    : media_url,
+            "media_type"   : "TWEET",
+            "permalink"    : tweet.get("url") or tweet.get("twitterUrl") or (f"https://x.com/{username}/status/{tweet_id}" if tweet_id else None),
         })
 
     return {
         "platform": "twitter",
         "account": {
-            "id": user_id,
-            "username": data.get("username"),
-            "name": data.get("name"),
-            "profile_image_url": data.get("profile_image_url"),
+            "id"               : username,
+            "username"         : username,
+            "name"             : name,
+            "profile_image_url": pic,
         },
         "metrics": {
-            "followersCount": parse_number(public_metrics.get("followers_count"), 0),
-            "followingCount": parse_number(public_metrics.get("following_count"), 0),
-            "tweetCount": parse_number(public_metrics.get("tweet_count"), 0),
-            "listedCount": parse_number(public_metrics.get("listed_count"), 0)
+            "followersCount": followers,
+            "followingCount": following,
+            "tweetCount"    : tweet_count,
+            "listedCount"   : _safe_int(author.get("listedCount") or 0),
         },
         "items": items,
     }
