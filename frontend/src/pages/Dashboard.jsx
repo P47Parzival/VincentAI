@@ -1,19 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Menu, Star } from 'lucide-react';
 import Sidebar from '../components/dashboard/Sidebar';
 import Analytics from '../components/dashboard/Analytics';
 import AIfyPost from '../components/dashboard/AIfyPost';
 import CreatePostAI from '../components/dashboard/CreatePostAI';
 import Trends from '../components/dashboard/Trends';
+import LiveStore from '../components/dashboard/LiveStore';
 
 export default function Dashboard() {
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const itemParam = searchParams.get('itemId');
   const [activeTab, setActiveTab] = useState('analytics');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'analytics':
         return <Analytics />;
+      case 'live-store':
+        return <LiveStore initialItemId={itemParam || ''} />;
       case 'aify':
         return <AIfyPost />;
       case 'create':
@@ -47,7 +60,7 @@ export default function Dashboard() {
                  </button>
                  <div>
                    <h2 className="text-xl md:text-3xl font-bold text-white tracking-tight pt-1" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
-                     {activeTab.replace(/([A-Z])/g, ' $1').trim()}
+                     {activeTab.replace(/[-_]/g, ' ').replace(/([A-Z])/g, ' $1').trim()}
                    </h2>
                    <p className="text-sm text-gray-400 mt-1 hidden sm:block">Manage and elevate your creator journey.</p>
                  </div>

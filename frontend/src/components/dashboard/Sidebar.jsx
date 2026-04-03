@@ -1,9 +1,10 @@
 import React from 'react';
-import { LayoutDashboard, Wand2, Sparkles, TrendingUp, X } from 'lucide-react';
+import { LayoutDashboard, Wand2, Sparkles, TrendingUp, Radio, X } from 'lucide-react';
 
 export default function Sidebar({ activeTab, setActiveTab, isOpen, setIsOpen }) {
   const tabs = [
     { id: 'analytics', label: 'Analytics', icon: LayoutDashboard },
+    { id: 'live-store', label: 'Live Store', icon: Radio },
     { id: 'aify', label: 'AIfy Post', icon: Wand2 },
     { id: 'create', label: 'Create Post with AI', icon: Sparkles },
     { id: 'trends', label: 'Trends', icon: TrendingUp },

@@ -8,10 +8,14 @@ from app.services.twitter_service import fetch_twitter_analytics
 from app.services.linkedin_service import fetch_linkedin_analytics
 from app.api.agent_routes import router as agent_router
 from app.api.trend_routes import router as trend_router
+from app.api.live_store_routes import router as live_store_router
+from app.api.whatsapp_routes import router as whatsapp_router
 
 router = APIRouter(prefix="/api")
 router.include_router(agent_router)
 router.include_router(trend_router)
+router.include_router(live_store_router)
+router.include_router(whatsapp_router)
 
 
 @router.get("/health")
