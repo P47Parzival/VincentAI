@@ -136,47 +136,47 @@ export default function CreatePostAI() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
+    <div className="max-w-5xl mx-auto space-y-8 pb-20 text-[#F0F0F0]">
       <div className="text-center mb-8">
-        <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent inline-block mb-4 tracking-tight pb-1">Multi-Agent Studio</h2>
-        <p className="text-slate-500 text-lg max-w-2xl mx-auto">Unleash an intelligent swarm of AI agents to research, strategize, and write hyper-optimized content for your brand.</p>
+        <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-[#00F5FF] via-[#8B5CF6] to-[#FF3D6E] bg-clip-text text-transparent inline-block mb-4 tracking-tight pb-1 drop-shadow-lg" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>Multi-Agent Studio</h2>
+        <p className="text-gray-400 text-lg max-w-2xl mx-auto">Unleash an intelligent swarm of AI agents to research, strategize, and write hyper-optimized content for your brand.</p>
       </div>
 
       {(!isGenerating && !isFinished) && (
-        <div className="p-8 md:p-10 rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden transition-all duration-300">
+        <div className="p-8 md:p-10 rounded-[2.5rem] bg-white/5 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] backdrop-blur-md relative overflow-hidden transition-all duration-300">
            <div className="space-y-8 relative z-10">
              <div>
-               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-3 ml-2">
-                 <Target size={18} className="text-purple-500" /> What does your startup do?
+               <label className="flex items-center gap-2 text-sm font-bold tracking-widest uppercase text-gray-500 mb-3 ml-2">
+                 <Target size={18} className="text-[#00F5FF]" /> What does your startup do?
                </label>
                <input 
                   type="text" 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-[#FCFBF8] border border-slate-200 focus:border-purple-300 focus:ring-4 focus:ring-purple-100 text-slate-800 px-5 py-4 rounded-2xl transition-all outline-none shadow-inner text-lg placeholder:text-slate-400"
+                  className="w-full bg-[#080808]/50 border border-white/10 focus:border-[#00F5FF]/50 focus:ring-4 focus:ring-[#00F5FF]/10 text-white px-5 py-4 rounded-2xl transition-all outline-none shadow-inner text-lg placeholder:text-gray-600"
                   placeholder="e.g. We build open-source CMS tools for creators..."
                />
              </div>
 
              <div>
-               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 mb-3 ml-2">
-                 <PenTool size={18} className="text-purple-500" /> What is your objective?
+               <label className="flex items-center gap-2 text-sm font-bold tracking-widest uppercase text-gray-500 mb-3 ml-2">
+                 <PenTool size={18} className="text-[#FF3D6E]" /> What is your objective?
                </label>
                <textarea 
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
-                  className="w-full bg-[#FCFBF8] border border-slate-200 focus:border-purple-300 focus:ring-4 focus:ring-purple-100 text-slate-800 px-5 py-4 rounded-2xl min-h-[140px] outline-none transition-all resize-none shadow-inner text-lg placeholder:text-slate-400"
+                  className="w-full bg-[#080808]/50 border border-white/10 focus:border-[#FF3D6E]/50 focus:ring-4 focus:ring-[#FF3D6E]/10 text-white px-5 py-4 rounded-2xl min-h-[140px] outline-none transition-all resize-none shadow-inner text-lg placeholder:text-gray-600"
                   placeholder="e.g. Write a viral Twitter thread announcing our new feature launch..."
                ></textarea>
              </div>
              
-             {error && <p className="text-red-500 text-sm ml-2 font-medium">{error}</p>}
+             {error && <p className="text-[#FF3D6E] text-sm ml-2 font-medium">{error}</p>}
              
              <button 
                onClick={generatePost}
                disabled={!description || !goal}
-               className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 text-white font-bold py-5 rounded-2xl shadow-lg shadow-purple-200 transition-all text-xl group transform hover:scale-[1.01] active:scale-95">
-               <Zap size={24} fill="currentColor" className={(!description || !goal) ? "" : "group-hover:animate-pulse"} />
+               className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-[#8B5CF6] to-[#FF3D6E] hover:from-[#8B5CF6]/90 hover:to-[#FF3D6E]/90 border border-white/10 disabled:opacity-50 text-white font-bold py-5 rounded-2xl shadow-[0_0_24px_rgba(255,61,110,0.4)] transition-all text-xl group transform hover:scale-[1.01] active:scale-95" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
+               <Zap size={24} fill="currentColor" className={(!description || !goal) ? "" : "group-hover:animate-pulse text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"} />
                Deploy AI Agents
              </button>
            </div>
@@ -185,22 +185,22 @@ export default function CreatePostAI() {
 
       {(isGenerating || isFinished) && (
         <div className="space-y-6">
-            <div className="p-6 bg-white rounded-3xl border border-slate-100 shadow-sm flex items-center justify-between text-sm md:text-base font-medium overflow-x-auto">
+            <div className="p-6 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] flex items-center justify-between text-sm md:text-base font-medium overflow-x-auto">
                 {steps.map((step, idx) => {
                     const isCompleted = currentStepIndex > idx;
                     const isActive = currentStepIndex === idx;
                     return (
-                        <div key={step.id} className={`flex items-center gap-2 flex-shrink-0 ${isCompleted ? 'text-green-500' : isActive ? 'text-purple-600 font-bold' : 'text-slate-400'}`}>
-                            {isCompleted ? <CheckCircle size={20} /> : isActive ? <Loader2 className="animate-spin text-purple-500" size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>}
+                        <div key={step.id} className={`flex items-center gap-2 flex-shrink-0 ${isCompleted ? 'text-[#00F5FF]' : isActive ? 'text-[#8B5CF6] font-bold shadow-[0_0_8px_rgba(139,92,246,0.5)]' : 'text-gray-500'}`}>
+                            {isCompleted ? <CheckCircle size={20} /> : isActive ? <Loader2 className="animate-spin text-[#8B5CF6]" size={20} /> : <div className="w-5 h-5 rounded-full border-2 border-gray-600"></div>}
                             <span className="whitespace-nowrap">{step.label}</span>
-                            {idx < steps.length - 1 && <ArrowRight size={16} className={`mx-3 ${isCompleted ? 'text-green-300' : 'text-slate-200'}`} />}
+                            {idx < steps.length - 1 && <ArrowRight size={16} className={`mx-3 ${isCompleted ? 'text-[#00F5FF]/50' : 'text-gray-600'}`} />}
                         </div>
                     );
                 })}
             </div>
 
             {error && (
-               <div className="p-4 bg-red-50 rounded-2xl border border-red-100 text-red-600 font-medium">
+               <div className="p-4 bg-[#FF3D6E]/10 rounded-2xl border border-[#FF3D6E]/30 text-[#FF3D6E] font-medium backdrop-blur-md">
                   {error}
                </div>
             )}
@@ -209,10 +209,10 @@ export default function CreatePostAI() {
                 <div className="space-y-6">
                     {/* Live Strategy Data */}
                     {(agentState.strategy || currentStepIndex >= getStepIndex('strategist')) && (
-                        <div className="p-6 bg-purple-50/50 rounded-3xl border border-purple-100 shadow-sm relative overflow-hidden">
-                            {!agentState.strategy && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center text-purple-400 font-medium"><Loader2 className="animate-spin mr-2" size={18} /> Consulting Strategist...</div>}
-                            <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2"><Zap size={18} className="text-purple-500"/> Content Strategy</h3>
-                            <div className="text-sm text-purple-800/80 leading-relaxed whitespace-pre-wrap">
+                        <div className="p-6 bg-[#8B5CF6]/5 backdrop-blur-md rounded-3xl border border-[#8B5CF6]/20 shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden">
+                            {!agentState.strategy && <div className="absolute inset-0 bg-[#080808]/50 backdrop-blur-sm z-10 flex items-center justify-center text-[#8B5CF6] font-medium"><Loader2 className="animate-spin mr-2" size={18} /> Consulting Strategist...</div>}
+                            <h3 className="font-bold text-white mb-3 flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}><Zap size={18} className="text-[#8B5CF6]"/> Content Strategy</h3>
+                            <div className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
                                 {agentState.strategy || "Waiting for data..."}
                             </div>
                         </div>
@@ -220,10 +220,10 @@ export default function CreatePostAI() {
 
                     {/* Live Research Data */}
                     {(agentState.research_data || currentStepIndex >= getStepIndex('research')) && (
-                        <div className="p-6 bg-[#FAFAFA] rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
-                            {!agentState.research_data && <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-10 flex items-center justify-center text-slate-500 font-medium"><Loader2 className="animate-spin mr-2" size={18} /> Scraping the web...</div>}
-                            <h3 className="font-semibold text-slate-800 mb-3 flex items-center gap-2"><Target size={18} className="text-blue-500"/> Web Research Findings</h3>
-                            <div className="text-sm text-slate-600 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto">
+                        <div className="p-6 bg-white/5 backdrop-blur-md rounded-3xl border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden">
+                            {!agentState.research_data && <div className="absolute inset-0 bg-[#080808]/50 backdrop-blur-sm z-10 flex items-center justify-center text-[#00F5FF]/80 font-medium"><Loader2 className="animate-spin mr-2" size={18} /> Scraping the web...</div>}
+                            <h3 className="font-bold text-white mb-3 flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}><Target size={18} className="text-[#00F5FF]"/> Web Research Findings</h3>
+                            <div className="text-sm text-gray-400 whitespace-pre-wrap leading-relaxed max-h-[300px] overflow-y-auto" style={{ scrollbarWidth: 'thin', scrollbarColor: '#00F5FF transparent' }}>
                                 {agentState.research_data || "Waiting for data..."}
                             </div>
                         </div>
@@ -233,32 +233,32 @@ export default function CreatePostAI() {
                 <div className="space-y-6 h-full">
                     {/* Live Final Draft */}
                     {(agentState.draft || currentStepIndex >= getStepIndex('copywriter')) ? (
-                        <div className="p-8 bg-slate-900 rounded-[2rem] shadow-xl text-white relative h-full">
-                            {!agentState.draft && <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-10 flex items-center justify-center text-slate-300 font-medium rounded-[2rem]"><Loader2 className="animate-spin mr-2" size={18} /> Drafting Post Copy...</div>}
-                            <div className="absolute top-4 right-4 bg-white/10 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-white/80">Copywriter Output</div>
-                            <h3 className="font-semibold text-white mb-6 text-xl">Final Draft</h3>
-                            <div className="text-slate-100/90 font-medium whitespace-pre-wrap leading-relaxed pb-6">
+                        <div className="p-8 bg-gradient-to-br from-[#FF3D6E]/20 to-[#8B5CF6]/30 backdrop-blur-xl border border-white/10 rounded-[2rem] shadow-[0_0_40px_rgba(255,61,110,0.2)] text-white relative h-full">
+                            {!agentState.draft && <div className="absolute inset-0 bg-[#080808]/80 backdrop-blur-xl z-10 flex items-center justify-center text-[#FF3D6E] font-medium rounded-[2rem]"><Loader2 className="animate-spin mr-2" size={18} /> Drafting Post Copy...</div>}
+                            <div className="absolute top-4 right-4 bg-[#FF3D6E]/20 backdrop-blur border border-[#FF3D6E]/30 px-3 py-1 rounded-full text-xs font-bold text-white shadow-[0_0_12px_rgba(255,61,110,0.5)]">Copywriter Output</div>
+                            <h3 className="font-bold text-white mb-6 text-2xl drop-shadow-lg" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>Final Draft</h3>
+                            <div className="text-white font-medium whitespace-pre-wrap leading-relaxed pb-6 text-lg">
                                 {agentState.draft || "Waiting for copywriter..."}
                             </div>
                             
                             {agentState.draft && isFinished && (
-                                <div className="mt-6 pt-6 border-t border-slate-700/50">
+                                <div className="mt-6 pt-6 border-t border-white/10">
                                     {!audioUrl ? (
                                         <button 
                                             onClick={generateAudio}
                                             disabled={isGeneratingAudio}
-                                            className="flex items-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 px-4 py-2 rounded-xl transition-all disabled:opacity-50 text-sm font-medium"
+                                            className="flex items-center gap-2 bg-[#8B5CF6]/40 hover:bg-[#8B5CF6]/60 border border-[#8B5CF6]/50 text-white px-4 py-2 rounded-xl transition-all disabled:opacity-50 text-sm font-bold shadow-[0_0_12px_rgba(139,92,246,0.3)]"
                                         >
                                             {isGeneratingAudio ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />} 
                                             {isGeneratingAudio ? 'Generating Voice...' : 'Listen to Draft'}
                                         </button>
                                     ) : (
-                                        <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 w-full flex items-center justify-between gap-4">
-                                            <audio ref={audioRef} controls src={audioUrl} className="w-full h-10 outline-none bg-slate-800" autoPlay />
+                                        <div className="bg-black/50 backdrop-blur-md p-3 rounded-2xl border border-white/10 w-full flex items-center justify-between gap-4 shadow-inner">
+                                            <audio ref={audioRef} controls src={audioUrl} className="w-full h-10 outline-none" autoPlay />
                                             <a 
                                                 href={audioUrl} 
                                                 download="draft_speech.wav"
-                                                className="shrink-0 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-colors shadow-sm"
+                                                className="shrink-0 flex items-center justify-center bg-[#8B5CF6] hover:bg-[#8B5CF6]/80 text-white p-2.5 rounded-xl transition-colors shadow-[0_0_16px_rgba(139,92,246,0.6)]"
                                                 title="Download Audio"
                                             >
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
@@ -267,23 +267,23 @@ export default function CreatePostAI() {
                                     )}
                                     
                                     {/* Video section */}
-                                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                                    <div className="mt-4 pt-4 border-t border-white/10">
                                         {(!isGeneratingVideo && !isVideoFinished) && (
                                             <button 
                                                 onClick={generateVideo}
-                                                className="flex items-center w-full justify-center gap-2 bg-gradient-to-r from-indigo-500/20 to-blue-500/20 hover:from-indigo-500/30 hover:to-blue-500/30 text-blue-200 border border-blue-500/30 px-4 py-3 rounded-xl transition-all text-sm font-semibold shadow-inner"
+                                                className="flex items-center w-full justify-center gap-2 bg-gradient-to-r from-[#00F5FF]/20 to-[#8B5CF6]/20 hover:from-[#00F5FF]/30 hover:to-[#8B5CF6]/30 text-white border border-[#00F5FF]/30 px-4 py-3 rounded-xl transition-all text-sm font-bold shadow-[0_0_16px_rgba(0,245,255,0.2)]"
                                             >
-                                                <Video size={18} /> Generate Video AI Avatar
+                                                <Video size={18} className="text-[#00F5FF]" /> Generate Video AI Avatar
                                             </button>
                                         )}
 
                                         {isGeneratingVideo && (
-                                            <div className="bg-black/60 rounded-xl p-4 border border-slate-700 font-mono text-[11px] md:text-xs text-green-400 h-40 overflow-y-auto leading-relaxed scroll-smooth flex flex-col justify-end">
+                                            <div className="bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-[11px] md:text-xs text-[#00F5FF] h-40 overflow-y-auto leading-relaxed scroll-smooth flex flex-col justify-end shadow-inner">
                                                 <div className="space-y-1">
                                                     {videoLogs.map((log, i) => (
                                                         <div key={i} className="animate-in fade-in slide-in-from-bottom-1">{log}</div>
                                                     ))}
-                                                    <div className="flex items-center text-green-400 mt-2">
+                                                    <div className="flex items-center text-[#00F5FF] mt-2">
                                                         <Loader2 size={12} className="animate-spin mr-2" /> Processing...
                                                     </div>
                                                 </div>
@@ -291,9 +291,9 @@ export default function CreatePostAI() {
                                         )}
 
                                         {isVideoFinished && (
-                                            <div className="rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl relative bg-black/50 p-2">
+                                            <div className="rounded-2xl overflow-hidden border border-white/20 shadow-[0_0_24px_rgba(0,245,255,0.3)] relative bg-black/50 p-2">
                                                 <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-medium text-white/90 border border-white/10">
-                                                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                                                    <div className="w-2 h-2 rounded-full bg-[#00F5FF] animate-pulse shadow-[0_0_8px_rgba(0,245,255,0.8)]"></div>
                                                     Generated Output
                                                 </div>
                                                 <video 
@@ -309,9 +309,9 @@ export default function CreatePostAI() {
                             )}
                         </div>
                     ) : (
-                        <div className="p-8 bg-slate-50 rounded-[2rem] border border-dashed border-slate-300 flex flex-col items-center justify-center h-full min-h-[300px] text-slate-400">
-                            <Loader2 className="animate-spin mb-4 text-slate-300" size={40} />
-                            <p className="font-medium">Copywriter is waiting for strategy...</p>
+                        <div className="p-8 bg-white/5 backdrop-blur-md rounded-[2rem] border border-dashed border-white/10 flex flex-col items-center justify-center h-full min-h-[300px] text-gray-500">
+                            <Loader2 className="animate-spin mb-4 text-gray-600" size={40} />
+                            <p className="font-medium uppercase tracking-widest text-sm">Copywriter is waiting for strategy...</p>
                         </div>
                     )}
                 </div>
@@ -329,7 +329,7 @@ export default function CreatePostAI() {
                             setGoal('');
                             setAudioUrl(null);
                         }}
-                        className="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl hover:bg-slate-50 transition-colors shadow-sm"
+                        className="px-8 py-3 bg-white/10 backdrop-blur-md border border-white/20 text-white font-bold rounded-2xl hover:bg-white/20 transition-colors shadow-[0_0_16px_rgba(255,255,255,0.1)]"
                     >
                         Create Another Post
                     </button>
