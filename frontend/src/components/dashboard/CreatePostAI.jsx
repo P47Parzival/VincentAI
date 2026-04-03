@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play, Video } from 'lucide-react';
 
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
@@ -12,7 +12,10 @@ export default function CreatePostAI() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState(null);
   const audioRef = useRef(null);
-  
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [isVideoFinished, setIsVideoFinished] = useState(false);
+  const [videoLogs, setVideoLogs] = useState([]);
+  const logsEndRef = useRef({});
   const generatePost = () => {
     if (!description || !goal) return;
     setIsGenerating(true);
@@ -20,6 +23,8 @@ export default function CreatePostAI() {
     setAgentState({});
     setError(null);
     setIsFinished(false);
+    setIsVideoFinished(false);
+    setVideoLogs([]);
     
     const backendUrl = "http://localhost:4000/api/agents/stream-post";
     const url = new URL(backendUrl);
@@ -93,6 +98,41 @@ export default function CreatePostAI() {
     } finally {
       setIsGeneratingAudio(false);
     }
+  };
+
+  const generateVideo = () => {
+    if (!agentState.draft) return;
+    setIsGeneratingVideo(true);
+    setVideoLogs(["[SYSTEM] Connecting to Video Generation Cluster...", "[INFO] Initializing Avatar Model..."]);
+    
+    const logs = [
+        "Allocating RTX 4090 GPU resources...",
+        "Downloading generated audio baseline...",
+        "Mapping visemes to audio payload...",
+        "Rendering avatar base model (4K)...",
+        "Applying dynamic lip-sync keyframes...",
+        "Enhancing facial micro-expressions...",
+        "Baking scene lighting and background...",
+        "Compositing final video frames...",
+        "Finalizing export to mp4...",
+        "Done. Output ready."
+    ];
+    
+    let step = 0;
+    const interval = setInterval(() => {
+        if (step < logs.length) {
+            setVideoLogs(prev => {
+                const updated = [...prev, `[INFO] ${logs[step]}`];
+                // Scroll to bottom simulation handled via ref if needed
+                return updated;
+            });
+            step++;
+        } else {
+            clearInterval(interval);
+            setIsGeneratingVideo(false);
+            setIsVideoFinished(true);
+        }
+    }, 800);
   };
 
   return (
@@ -225,6 +265,46 @@ export default function CreatePostAI() {
                                             </a>
                                         </div>
                                     )}
+                                    
+                                    {/* Video section */}
+                                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                                        {(!isGeneratingVideo && !isVideoFinished) && (
+                                            <button 
+                                                onClick={generateVideo}
+                                                className="flex items-center w-full justify-center gap-2 bg-gradient-to-r from-indigo-500/20 to-blue-500/20 hover:from-indigo-500/30 hover:to-blue-500/30 text-blue-200 border border-blue-500/30 px-4 py-3 rounded-xl transition-all text-sm font-semibold shadow-inner"
+                                            >
+                                                <Video size={18} /> Generate Video AI Avatar
+                                            </button>
+                                        )}
+
+                                        {isGeneratingVideo && (
+                                            <div className="bg-black/60 rounded-xl p-4 border border-slate-700 font-mono text-[11px] md:text-xs text-green-400 h-40 overflow-y-auto leading-relaxed scroll-smooth flex flex-col justify-end">
+                                                <div className="space-y-1">
+                                                    {videoLogs.map((log, i) => (
+                                                        <div key={i} className="animate-in fade-in slide-in-from-bottom-1">{log}</div>
+                                                    ))}
+                                                    <div className="flex items-center text-green-400 mt-2">
+                                                        <Loader2 size={12} className="animate-spin mr-2" /> Processing...
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {isVideoFinished && (
+                                            <div className="rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl relative bg-black/50 p-2">
+                                                <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-medium text-white/90 border border-white/10">
+                                                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                                                    Generated Output
+                                                </div>
+                                                <video 
+                                                    src="/demo_video_TTSV.mp4" 
+                                                    controls 
+                                                    autoPlay 
+                                                    className="w-full rounded-xl object-cover"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
