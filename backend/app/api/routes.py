@@ -4,8 +4,10 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import UpstreamRequestError
 from app.services.instagram_service import fetch_instagram_analytics
 from app.services.youtube_service import fetch_youtube_analytics
+from app.api.agent_routes import router as agent_router
 
 router = APIRouter(prefix="/api")
+router.include_router(agent_router)
 
 
 @router.get("/health")
