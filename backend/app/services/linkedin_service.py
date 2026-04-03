@@ -46,6 +46,77 @@ def _safe_int(val) -> int:
         return 0
 
 
+async def _try_apify_profile(
+    actor_path: str,
+    profile_url: str,
+    token: str,
+) -> tuple[dict[str, Any] | None, str | None]:
+    payloads = [
+        {"profileUrls": [profile_url]},
+        {"startUrls": [{"url": profile_url}]},
+        {"urls": [profile_url]},
+    ]
+
+    last_error: str | None = None
+    for payload in payloads:
+        try:
+            data = await _run_apify(actor_path, payload, token)
+            if not data:
+                last_error = f"{actor_path}: empty dataset"
+                continue
+
+            first = data[0] if isinstance(data[0], dict) else None
+            if not first:
+                last_error = f"{actor_path}: invalid item format"
+                continue
+
+            if first.get("error"):
+                return None, f"{actor_path}: {first.get('error')}"
+
+            return first, None
+        except Exception as error:
+            last_error = f"{actor_path}: {str(error)}"
+
+    return None, last_error
+
+
+async def _fetch_linkedin_oauth_profile() -> tuple[dict[str, Any] | None, str | None]:
+    token = os.getenv("LINKEDIN_ACCESS_TOKEN", "").strip()
+    if not token:
+        return None, "LINKEDIN_ACCESS_TOKEN not set"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "X-Restli-Protocol-Version": "2.0.0",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            res = await client.get("https://api.linkedin.com/v2/userinfo", headers=headers)
+        if res.status_code != 200:
+            return None, f"LinkedIn OAuth /v2/userinfo HTTP {res.status_code}: {res.text[:200]}"
+
+        userinfo = res.json()
+        return {
+            "publicIdentifier": userinfo.get("sub") or "linkedin-oauth-user",
+            "fullName": userinfo.get("name") or "LinkedIn User",
+            "firstName": userinfo.get("given_name") or "",
+            "lastName": userinfo.get("family_name") or "",
+            "headline": "",
+            "location": "",
+            "summary": "",
+            "profilePicture": userinfo.get("picture"),
+            "connections": 0,
+            "followers": 0,
+            "experiences": [],
+            "skills": [],
+            "certifications": [],
+            "_oauthFallback": True,
+        }, None
+    except Exception as error:
+        return None, f"LinkedIn OAuth fallback failed: {str(error)}"
+
+
 async def fetch_linkedin_analytics(
     profile_url_override: str | None,
     max_results: int,
@@ -61,14 +132,72 @@ async def fetch_linkedin_analytics(
             "Provide ?profileUrl= query param or set LINKEDIN_DEFAULT_PROFILE_URL in .env"
         )
 
-    data = await _run_apify("dev_fusion~linkedin-profile-scraper", {
-        "profileUrls": [profile_url],
-    }, apify_token)
+    notes: list[str] = []
 
-    if not data:
-        raise ValueError("Apify returned no LinkedIn profile data.")
+    profile, primary_error = await _try_apify_profile(
+        "dev_fusion~linkedin-profile-scraper",
+        profile_url,
+        apify_token,
+    )
+    if primary_error:
+        notes.append(primary_error)
 
-    profile = data[0]
+    # Optional env override for a backup actor, useful when primary actor is plan-restricted.
+    if not profile:
+        fallback_actor = os.getenv("LINKEDIN_FALLBACK_ACTOR", "").strip()
+        if fallback_actor:
+            fallback_profile, fallback_error = await _try_apify_profile(
+                fallback_actor,
+                profile_url,
+                apify_token,
+            )
+            if fallback_error:
+                notes.append(fallback_error)
+            if fallback_profile:
+                profile = fallback_profile
+                notes.append(f"linkedin source actor: {fallback_actor}")
+
+    if not profile:
+        oauth_profile, oauth_error = await _fetch_linkedin_oauth_profile()
+        if oauth_error:
+            notes.append(oauth_error)
+        if oauth_profile:
+            profile = oauth_profile
+            notes.append("linkedin source: OAuth /v2/userinfo fallback")
+
+    if not profile:
+        return {
+            "platform": "linkedin",
+            "account": {
+                "id": profile_url,
+                "username": "LinkedIn User",
+                "name": "LinkedIn User",
+                "headline": "",
+                "location": "",
+                "summary": "",
+                "profile_image_url": None,
+                "profile_url": profile_url,
+            },
+            "metrics": {
+                "followersCount": 0,
+                "connectionsCount": 0,
+                "experiencesCount": 0,
+                "skillsCount": 0,
+                "certificationsCount": 0,
+            },
+            "experiences": [],
+            "skills": [],
+            "items": [],
+            "notes": [
+                "No LinkedIn profile rows returned from configured sources.",
+                *notes[:4],
+            ],
+        }
+
+    # Mark source when primary actor succeeds.
+    if not any(note.startswith("linkedin source") for note in notes):
+        notes.append("linkedin source actor: dev_fusion~linkedin-profile-scraper")
+
     print(f"[LI DEBUG] connections={profile.get('connections')} followers={profile.get('followers')}")
 
     # Confirmed field names from docs: "connections" and "followers" (no "Count" suffix)
@@ -86,7 +215,7 @@ async def fetch_linkedin_analytics(
     experience_raw = profile.get("experiences") or profile.get("experience") or []
     experiences = []
     if isinstance(experience_raw, list):
-        for exp in experience_raw[:6]:
+        for exp in experience_raw[:max(max_results, 1)]:
             if isinstance(exp, dict):
                 experiences.append({
                     "title"   : exp.get("title") or exp.get("position") or "",
@@ -107,6 +236,20 @@ async def fetch_linkedin_analytics(
     # Certifications
     certs_raw = profile.get("certifications") or profile.get("licenses") or []
     cert_count = len(certs_raw) if isinstance(certs_raw, list) else 0
+
+    items = [
+        {
+            "id": f"exp-{idx}",
+            "caption": f"{exp.get('title') or 'Role'} at {exp.get('company') or 'Company'}",
+            "publishedAt": None,
+            "like_count": None,
+            "comments_count": None,
+            "media_url": None,
+            "media_type": "EXPERIENCE",
+            "permalink": profile_url,
+        }
+        for idx, exp in enumerate(experiences, start=1)
+    ]
 
     return {
         "platform": "linkedin",
@@ -129,5 +272,6 @@ async def fetch_linkedin_analytics(
         },
         "experiences": experiences,
         "skills"     : skills,
-        "items"      : [],  # LinkedIn scraper doesn't return posts in this actor
+        "items"      : items,
+        "notes"      : notes,
     }

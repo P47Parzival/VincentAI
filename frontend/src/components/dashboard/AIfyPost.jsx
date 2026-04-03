@@ -1,10 +1,144 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Search, Sparkles, AlertCircle, Video, CheckCircle2, Play, Activity, Heart, MessageCircle, TrendingUp, ExternalLink } from 'lucide-react';
+
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const normalizeNumber = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+};
+
+const viralityKeywords = [
+  'new', 'secret', 'proven', 'viral', 'trend', 'ai', 'launch', 'breakthrough', 'insane', 'must',
+  'discover', 'boost', 'strategy', 'growth', 'creator', 'exclusive', 'free', 'today', 'now', 'ultimate'
+];
+
+const ctaKeywords = ['comment', 'share', 'save', 'follow', 'click', 'try', 'watch', 'join', 'dm'];
+
+const countRegexMatches = (text, regex) => {
+  const matches = text.match(regex);
+  return matches ? matches.length : 0;
+};
+
+const computeViralityScore = ({ text, likes, comments }) => {
+  const content = String(text || '').trim();
+  const lowered = content.toLowerCase();
+
+  const likesCount = normalizeNumber(likes);
+  const commentsCount = normalizeNumber(comments);
+
+  const contentLength = content.length;
+  const hashtagsCount = countRegexMatches(content, /#[\w]+/g);
+  const emojiCount = countRegexMatches(content, /[\u{1F300}-\u{1FAFF}]/gu);
+
+  const keywordHits = viralityKeywords.reduce((acc, term) => acc + (lowered.includes(term) ? 1 : 0), 0);
+  const ctaHits = ctaKeywords.reduce((acc, term) => acc + (lowered.includes(term) ? 1 : 0), 0);
+
+  // Strong hook formats like numbers + promise tend to perform better.
+  const hookPatternHits = countRegexMatches(lowered, /\b\d+\s*(ways?|tips?|steps?|reasons?)\b/g);
+
+  const lengthScore = contentLength > 0
+    ? clamp(16 - Math.round(Math.abs(contentLength - 180) / 14), 0, 16)
+    : 0;
+  const keywordScore = clamp(keywordHits * 2, 0, 14);
+  const ctaScore = clamp(ctaHits * 4, 0, 12);
+  const hashtagScore = clamp(hashtagsCount * 2, 0, 8);
+  const emojiScore = clamp(Math.round(emojiCount * 1.5), 0, 6);
+  const hookScore = clamp(hookPatternHits * 4, 0, 9);
+
+  const textScore = lengthScore + keywordScore + ctaScore + hashtagScore + emojiScore + hookScore;
+
+  // Engagement component (comments weighted more because they signal deeper interaction).
+  const weightedEngagement = likesCount + commentsCount * 3;
+  const engagementScore = clamp(Math.round(Math.log10(weightedEngagement + 1) * 16), 0, 45);
+
+  const total = clamp(Math.round(10 + textScore + engagementScore), 0, 100);
+  return total;
+};
+
+const polarToCartesian = (cx, cy, radius, angle) => {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return {
+    x: cx + radius * Math.cos(radians),
+    y: cy + radius * Math.sin(radians),
+  };
+};
+
+const describeArc = (cx, cy, radius, startAngle, endAngle) => {
+  const start = polarToCartesian(cx, cy, radius, startAngle);
+  const end = polarToCartesian(cx, cy, radius, endAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
+  return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
+};
+
+const ViralitySpeedometer = ({ value, label, colorClass }) => {
+  const safeValue = clamp(normalizeNumber(value), 0, 100);
+  const startAngle = -120;
+  const endAngle = 120;
+  const needleAngle = startAngle + ((endAngle - startAngle) * safeValue) / 100;
+  const progressArc = describeArc(70, 70, 50, startAngle, needleAngle);
+
+  return (
+    <div className="rounded-2xl bg-white/5 border border-white/10 p-3">
+      <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${colorClass}`}>{label}</p>
+      <svg viewBox="0 0 140 95" className="w-full h-24">
+        {/* Gauge zones */}
+        <path d={describeArc(70, 70, 50, -120, -40)} stroke="#ef4444" strokeOpacity="0.35" strokeWidth="10" fill="none" strokeLinecap="round" />
+        <path d={describeArc(70, 70, 50, -40, 40)} stroke="#f59e0b" strokeOpacity="0.35" strokeWidth="10" fill="none" strokeLinecap="round" />
+        <path d={describeArc(70, 70, 50, 40, 120)} stroke="#22c55e" strokeOpacity="0.35" strokeWidth="10" fill="none" strokeLinecap="round" />
+
+        {/* Active arc */}
+        <path d={progressArc} stroke="currentColor" className={colorClass} strokeWidth="8" fill="none" strokeLinecap="round" />
+
+        {/* Needle */}
+        <line
+          x1="70"
+          y1="70"
+          x2={polarToCartesian(70, 70, 38, needleAngle).x}
+          y2={polarToCartesian(70, 70, 38, needleAngle).y}
+          stroke="white"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <circle cx="70" cy="70" r="4.5" fill="white" />
+      </svg>
+      <div className="flex justify-between text-[10px] text-gray-500 font-bold uppercase tracking-wider px-1">
+        <span>Low</span>
+        <span>Medium</span>
+        <span>High</span>
+      </div>
+    </div>
+  );
+};
 
 export default function AIfyPost() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
+
+  const viralityScores = useMemo(() => {
+    if (!result) {
+      return { before: 0, after: 0, lift: 0 };
+    }
+
+    const before = computeViralityScore({
+      text: result.original_text,
+      likes: result.original_likes,
+      comments: result.original_comments,
+    });
+
+    const after = computeViralityScore({
+      text: result.enhanced_text,
+      likes: result.projected_likes,
+      comments: result.projected_comments,
+    });
+
+    return {
+      before,
+      after,
+      lift: Math.max(0, after - before),
+    };
+  }, [result]);
 
   const handleAnalyze = async () => {
     if (!url) return;
@@ -215,19 +349,32 @@ ${result.oembed_html}
            <div className="space-y-6">
               <div className="bg-white/5 backdrop-blur-md p-6 rounded-[2rem] border border-white/10 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
                  {/* Header row: title + metrics */}
-                 <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between">
                     <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
                        Original Scraped Content
                        <span className="bg-white/10 text-gray-300 px-2 py-0.5 rounded text-[10px] border border-white/10">{result.platform}</span>
                     </h3>
-                    <div className="flex gap-2 text-gray-400 font-bold">
-                       <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
-                          <Heart size={13} className="text-[#FF3D6E] fill-[#FF3D6E]/20"/> {result.original_likes?.toLocaleString() || 0}
-                       </span>
-                       <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
-                          <MessageCircle size={13} className="text-[#00F5FF] fill-[#00F5FF]/20"/> {result.original_comments?.toLocaleString() || 0}
-                       </span>
-                    </div>
+                 </div>
+
+                <div className="mt-4 mb-4">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-2">Virality Score</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                   <ViralitySpeedometer value={viralityScores.before} label="Before (Scraped)" colorClass="text-[#FF3D6E]" />
+                   <ViralitySpeedometer value={viralityScores.after} label="After (AIfied)" colorClass="text-[#8B5CF6]" />
+                  </div>
+                  <div className="mt-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#00F5FF] bg-[#00F5FF]/10 border border-[#00F5FF]/25 px-3 py-1.5 rounded-lg">
+                   <TrendingUp size={12} />
+                   Lift {viralityScores.lift > 0 ? `+${viralityScores.lift}` : 'No change'}
+                  </div>
+                </div>
+
+                <div className="flex gap-2 text-gray-400 font-bold mb-4">
+                  <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
+                    <Heart size={13} className="text-[#FF3D6E] fill-[#FF3D6E]/20"/> {result.original_likes?.toLocaleString() || 0}
+                  </span>
+                  <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
+                    <MessageCircle size={13} className="text-[#00F5FF] fill-[#00F5FF]/20"/> {result.original_comments?.toLocaleString() || 0}
+                  </span>
                  </div>
 
                  <p className="text-white text-base whitespace-pre-wrap leading-relaxed">{result.original_text}</p>

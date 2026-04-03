@@ -34,6 +34,11 @@ For YouTube:
 	- or `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REFRESH_TOKEN`
 	- OAuth scope must include: `https://www.googleapis.com/auth/yt-analytics.readonly`
 
+For LinkedIn:
+- Primary actor `dev_fusion/linkedin-profile-scraper` may be UI-only on free Apify plans.
+- Optional fallback actor can be configured with `LINKEDIN_FALLBACK_ACTOR`.
+- If actor scraping is unavailable, backend can fallback to LinkedIn OAuth profile (`/linkedin/auth`), when `LINKEDIN_ACCESS_TOKEN` is set.
+
 ## 2. Run
 
 ```bash
@@ -45,10 +50,12 @@ Server default: `http://localhost:4000`
 ## 3. Endpoints
 
 - `GET /api/health`
-- `GET /api/analytics/instagram?igUserId=<id>&mediaLimit=10`
+- `GET /api/analytics/instagram?username=<handle>&mediaLimit=10`
 - `GET /api/analytics/youtube?channelId=<id>&maxResults=8`
+- `GET /api/analytics/twitter?username=<handle>&maxResults=10`
+- `GET /api/analytics/linkedin?profileUrl=<linkedin_profile_url>&maxResults=5`
 
-If `igUserId` or `channelId` are omitted, backend falls back to `.env` values.
+If `username`, `channelId`, or `profileUrl` are omitted, backend falls back to `.env` values.
 
 When OAuth is configured correctly, YouTube reach/impressions come from YouTube Analytics API.
 

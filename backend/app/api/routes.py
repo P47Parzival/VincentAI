@@ -69,7 +69,7 @@ async def get_youtube_analytics(
 @router.get("/analytics/twitter")
 async def get_twitter_analytics(
     username: str | None = Query(default=None),
-    maxResults: int = Query(default=5, ge=5, le=100),
+    maxResults: int = Query(default=10, ge=1, le=100),
 ) -> JSONResponse:
     try:
         payload = await fetch_twitter_analytics(username, maxResults)
