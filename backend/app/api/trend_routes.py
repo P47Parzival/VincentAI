@@ -5,49 +5,81 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-try:
-    from pytrends.request import TrendReq
-except ImportError:
-    TrendReq = None
+import re
+from collections import Counter
 
 router = APIRouter(prefix="/trends")
 
-@router.get("/google")
-def get_google_trends():
-    if TrendReq is None:
-        raise HTTPException(status_code=500, detail="pytrends library is not installed.")
-        
+@router.get("/hashtags")
+async def get_hashtags():
+    api_key = os.getenv("YOUTUBE_API_KEY")
+    if not api_key:
+        return JSONResponse(status_code=400, content={"message": "Missing YOUTUBE_API_KEY"})
+    
     try:
-        pytrend = TrendReq(hl='en-US', tz=360)
-        # 3 relevant creator economy / tech keywords
-        kw_list = ["AI Tools", "Content Automation", "Vlogging"]
-        pytrend.build_payload(kw_list, cat=0, timeframe='today 1-m', geo='US')
-        df = pytrend.interest_over_time()
-        
-        data = []
-        if not df.empty:
-            if 'isPartial' in df.columns:
-                df = df.drop(columns=['isPartial'])
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                params={
+                    "part": "snippet",
+                    "chart": "mostPopular",
+                    "regionCode": "US",
+                    "maxResults": 50,
+                    "key": api_key,
+                }
+            )
             
-            for idx, row in df.iterrows():
-                entry = {"date": idx.strftime("%b %d")}
-                for col in df.columns:
-                    entry[col] = int(row[col])
-                data.append(entry)
+            if response.status_code != 200:
+                raise Exception(response.text)
                 
-        return JSONResponse(content={"items": data, "keywords": kw_list})
+            payload = response.json()
+            
+            hashtags_counter = Counter()
+            
+            for item in payload.get("items", []):
+                snippet = item.get("snippet", {})
+                title = snippet.get("title", "")
+                desc = snippet.get("description", "")
+                tags = snippet.get("tags", [])
+                
+                video_tags = set()
+                
+                # Extract authentic # tags from title and description
+                for text in [title, desc]:
+                    extracted = re.findall(r'#(\w+)', text.lower())
+                    for t in extracted:
+                        if len(t) > 2:
+                            video_tags.add(t)
+                            
+                # Add YouTube SEO tags (stripping spaces to mimic hashtags)
+                for t in tags:
+                    clean_tag = t.lower().replace(" ", "")
+                    # Ignore overly long sentences in tags
+                    if 2 < len(clean_tag) < 20: 
+                        video_tags.add(clean_tag)
+                        
+                # Count each tag only ONCE per video for an authentic Penetration Metric
+                for t in video_tags:
+                    hashtags_counter[f"#{t}"] += 1
+                
+            top_tags = hashtags_counter.most_common(10)
+            
+            data = [{"name": tag, "count": count} for tag, count in top_tags]
+            
+        return JSONResponse(content={"items": data})
     except Exception as e:
-        print("Google Trends Error:", str(e))
-        kw_list = ["AI Tools", "Content Automation", "Vlogging"]
+        print("Hashtag Scraper Error:", str(e))
         mock_data = [
-            {"date": "Mar 01", "AI Tools": 40, "Content Automation": 20, "Vlogging": 60},
-            {"date": "Mar 08", "AI Tools": 55, "Content Automation": 30, "Vlogging": 58},
-            {"date": "Mar 15", "AI Tools": 70, "Content Automation": 45, "Vlogging": 50},
-            {"date": "Mar 22", "AI Tools": 85, "Content Automation": 60, "Vlogging": 48},
-            {"date": "Mar 29", "AI Tools": 100, "Content Automation": 75, "Vlogging": 45},
-            {"date": "Apr 05", "AI Tools": 95, "Content Automation": 90, "Vlogging": 42},
+            {"name": "#shorts", "count": 142},
+            {"name": "#funny", "count": 98},
+            {"name": "#podcast", "count": 76},
+            {"name": "#viral", "count": 65},
+            {"name": "#music", "count": 54},
+            {"name": "#vlog", "count": 41},
+            {"name": "#gaming", "count": 38},
+            {"name": "#ai", "count": 29},
         ]
-        return JSONResponse(content={"items": mock_data, "keywords": kw_list, "mocked": True})
+        return JSONResponse(content={"items": mock_data, "mocked": True})
 
 
 @router.get("/youtube")

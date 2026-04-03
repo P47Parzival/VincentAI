@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Flame, Activity, Music, PlaySquare, LayoutGrid, ExternalLink, Play, Heart, Eye } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Trends() {
-  const [googleData, setGoogleData] = useState({ items: [], keywords: [] });
+  const [hashtagData, setHashtagData] = useState({ items: [], mocked: false });
   const [spotifyData, setSpotifyData] = useState({ items: [], mocked: false });
   const [youtubeData, setYoutubeData] = useState({ items: [] });
   const [socialData, setSocialData] = useState({ items: [], mocked: false });
@@ -14,13 +14,13 @@ export default function Trends() {
       try {
         setLoading(true);
         const [googleRes, spotifyRes, ytRes, socialRes] = await Promise.allSettled([
-          fetch('http://localhost:4000/api/trends/google').then(x => x.json()),
+          fetch('http://localhost:4000/api/trends/hashtags').then(x => x.json()),
           fetch('http://localhost:4000/api/trends/spotify').then(x => x.json()),
           fetch('http://localhost:4000/api/trends/youtube').then(x => x.json()),
           fetch('http://localhost:4000/api/trends/social').then(x => x.json())
         ]);
         
-        if (googleRes.status === 'fulfilled' && googleRes.value.items) setGoogleData(googleRes.value);
+        if (googleRes.status === 'fulfilled' && googleRes.value.items) setHashtagData(googleRes.value);
         if (spotifyRes.status === 'fulfilled' && spotifyRes.value.items) setSpotifyData(spotifyRes.value);
         if (ytRes.status === 'fulfilled' && ytRes.value.items) setYoutubeData(ytRes.value);
         if (socialRes.status === 'fulfilled' && socialRes.value.items) setSocialData(socialRes.value);
@@ -56,30 +56,31 @@ export default function Trends() {
         </div>
       </div>
 
-      {/* Google Trends Line Chart */}
+      {/* Hashtag Frequency Bar Chart */}
       <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
         <div className="mb-6 flex items-center justify-between">
-           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Activity className="text-blue-500"/> Search Interest Over Time</h3>
-           <span className="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-500 rounded-full">Google Trends</span>
+           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Activity className="text-blue-500"/> Trending Video Hashtags</h3>
+           <div className="flex gap-2 items-center">
+               {hashtagData.mocked && <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-1 rounded">MOCKED</span>}
+               <span className="text-xs font-semibold px-3 py-1 bg-slate-100 text-slate-500 rounded-full">Global YouTube Scrape</span>
+           </div>
         </div>
         <div className="h-80 w-full font-medium">
-          {googleData.items.length > 0 ? (
+          {hashtagData.items.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={googleData.items} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <BarChart data={hashtagData.items} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#64748b', fontWeight: '500' }} dy={10} />
                     <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} />
                     <Tooltip 
                         contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', fontWeight: '600' }}
+                        cursor={{fill: '#f8fafc'}}
                     />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '14px' }}/>
-                    {googleData.keywords.map((kw, i) => (
-                        <Line key={kw} type="monotone" dataKey={kw} stroke={chartColors[i % chartColors.length]} strokeWidth={3} dot={false} activeDot={{ r: 8 }} />
-                    ))}
-                </LineChart>
+                    <Bar dataKey="count" fill="#8b5cf6" radius={[6, 6, 0, 0]} barSize={40} />
+                </BarChart>
             </ResponsiveContainer>
           ) : (
-             <div className="h-full flex items-center justify-center text-slate-400">Failed to load Google Trends data</div>
+             <div className="h-full flex items-center justify-center text-slate-400">Failed to load hashtag data</div>
           )}
         </div>
       </div>
