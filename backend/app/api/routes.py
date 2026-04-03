@@ -6,6 +6,7 @@ from app.services.instagram_service import fetch_instagram_analytics
 from app.services.youtube_service import fetch_youtube_analytics
 from app.services.twitter_service import fetch_twitter_analytics
 from app.services.linkedin_service import fetch_linkedin_analytics
+from app.services.analytics_detail_service import fetch_analytics_item_detail
 from app.api.agent_routes import router as agent_router
 from app.api.trend_routes import router as trend_router
 
@@ -108,4 +109,40 @@ async def get_linkedin_analytics(
         return JSONResponse(
             status_code=500,
             content={"message": "Failed to fetch LinkedIn analytics.", "details": str(error), "traceback": traceback.format_exc()},
+        )
+
+
+@router.get("/analytics/detail")
+async def get_analytics_item_detail(
+    platform: str = Query(...),
+    itemId: str = Query(...),
+    username: str | None = Query(default=None),
+    channelId: str | None = Query(default=None),
+    maxComments: int = Query(default=80, ge=1, le=200),
+) -> JSONResponse:
+    try:
+        payload = await fetch_analytics_item_detail(
+            platform=platform,
+            item_id=itemId,
+            username_override=username,
+            channel_id_override=channelId,
+            max_comments=maxComments,
+        )
+        return JSONResponse(content=payload)
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"message": str(error)})
+    except UpstreamRequestError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"message": error.message, "details": error.payload},
+        )
+    except Exception as error:
+        import traceback
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "Failed to fetch analytics item detail.",
+                "details": str(error),
+                "traceback": traceback.format_exc(),
+            },
         )
