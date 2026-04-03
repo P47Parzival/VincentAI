@@ -1,29 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { Flame, Activity, Music, PlaySquare, LayoutGrid, ExternalLink, Play, Heart, Eye } from 'lucide-react';
+import { Flame, Activity, Music, PlaySquare, LayoutGrid, ExternalLink, Play, Heart, Eye, Zap, Target, ArrowRight } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 
 export default function Trends() {
   const [hashtagData, setHashtagData] = useState({ items: [], mocked: false });
   const [spotifyData, setSpotifyData] = useState({ items: [], mocked: false });
   const [youtubeData, setYoutubeData] = useState({ items: [] });
-  const [socialData, setSocialData] = useState({ items: [], mocked: false });
+  const [trendPredictions, setTrendPredictions] = useState({ items: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchAllTrends = async () => {
       try {
         setLoading(true);
-        const [googleRes, spotifyRes, ytRes, socialRes] = await Promise.allSettled([
+        const [googleRes, spotifyRes, ytRes, predictRes] = await Promise.allSettled([
           fetch('http://localhost:4000/api/trends/hashtags').then(x => x.json()),
           fetch('http://localhost:4000/api/trends/spotify').then(x => x.json()),
           fetch('http://localhost:4000/api/trends/youtube').then(x => x.json()),
-          fetch('http://localhost:4000/api/trends/social').then(x => x.json())
+          fetch('http://localhost:4000/api/trends/predict').then(x => x.json())
         ]);
         
         if (googleRes.status === 'fulfilled' && googleRes.value.items) setHashtagData(googleRes.value);
         if (spotifyRes.status === 'fulfilled' && spotifyRes.value.items) setSpotifyData(spotifyRes.value);
         if (ytRes.status === 'fulfilled' && ytRes.value.items) setYoutubeData(ytRes.value);
-        if (socialRes.status === 'fulfilled' && socialRes.value.items) setSocialData(socialRes.value);
+        if (predictRes.status === 'fulfilled' && predictRes.value.items) setTrendPredictions(predictRes.value);
         
       } catch (error) {
         console.error("Failed to load trends data:", error);
@@ -147,31 +147,36 @@ export default function Trends() {
                 </div>
             </div>
 
-            {/* Social Scraper (Apify Mock) */}
-            <div className="bg-white/5 backdrop-blur-md rounded-[2rem] p-6 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
-                <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-xl font-bold text-white flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}><LayoutGrid className="text-[#00F5FF]"/> Scraped Viral Posts</h3>
-                    {socialData.mocked && <span className="text-[10px] font-bold bg-[#FF3D6E]/20 text-[#FF3D6E] px-2 py-1 rounded border border-[#FF3D6E]/30">MOCKED</span>}
+            {/* Predictive Micro-Trends */}
+            <div className="bg-white/5 backdrop-blur-md rounded-[2rem] p-6 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+                    <Zap size={140} className="text-[#00F5FF]" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                    {socialData.items.map((post) => (
-                        <div key={post.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden group border border-white/10 shadow-lg">
-                            <img src={post.thumbnail} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="post" />
-                            <div className="absolute inset-0 bg-gradient-to-t from-[#080808] via-black/40 to-transparent opacity-90"></div>
-                            
-                            <div className="absolute top-3 left-3 p-1.5 bg-black/40 backdrop-blur-md rounded-lg border border-white/10">
-                                {post.platform === 'tiktok' ? <Play size={14} className="text-[#00F5FF] fill-[#00F5FF]" /> : <Eye size={14} className="text-[#8B5CF6]" />}
+                <div className="flex items-center justify-between mb-6 relative z-10">
+                    <h3 className="text-xl font-bold text-white flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}><Target className="text-[#00F5FF]"/> Predicted Micro-Trends</h3>
+                    <span className="text-[10px] font-bold bg-[#00F5FF]/10 text-[#00F5FF] px-2 py-1 rounded border border-[#00F5FF]/20 flex items-center gap-1"><Zap size={10} /> AI Synthesis</span>
+                </div>
+                <div className="flex flex-col gap-4 relative z-10 max-h-[500px] overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#00F5FF transparent' }}>
+                    {trendPredictions.items && trendPredictions.items.map((trend, i) => (
+                        <div key={i} className="bg-black/30 border border-white/5 rounded-2xl p-5 hover:bg-black/50 transition-all group">
+                            <div className="flex justify-between items-start mb-3">
+                                <h4 className="text-white font-bold text-lg leading-tight group-hover:text-[#00F5FF] transition-colors pr-2">{trend.trend_name}</h4>
+                                <span className="bg-white/10 border border-white/10 text-gray-300 text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-lg shrink-0">{trend.origin_signal}</span>
                             </div>
-
-                            <div className="absolute bottom-3 left-3 right-3">
-                                <p className="text-white text-xs font-medium mb-2 line-clamp-2 leading-snug drop-shadow-md">{post.caption}</p>
-                                <div className="flex items-center justify-between text-gray-300 text-[10px] font-bold">
-                                    <span>{post.author}</span>
-                                    <div className="flex items-center gap-1"><Heart size={10} className="fill-[#FF3D6E] text-[#FF3D6E] drop-shadow-[0_0_4px_rgba(255,61,110,0.8)]"/> {(post.likes / 1000).toFixed(0)}k</div>
-                                </div>
+                            <p className="text-gray-400 text-sm mb-4 leading-relaxed line-clamp-3">
+                                "{trend.virality_hypothesis}"
+                            </p>
+                            <div className="bg-[#8B5CF6]/10 border border-[#8B5CF6]/20 rounded-xl p-3">
+                                <p className="text-xs font-bold text-[#8B5CF6] uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><ArrowRight size={12}/> How to leverage</p>
+                                <p className="text-gray-300 text-sm leading-relaxed">{trend.how_to_leverage}</p>
                             </div>
                         </div>
                     ))}
+                    {(!trendPredictions.items || trendPredictions.items.length === 0) && (
+                        <div className="flex items-center justify-center h-40 text-gray-500 font-bold uppercase tracking-widest text-sm text-center px-4">
+                           Mining Subreddits & Tavily Data...
+                        </div>
+                    )}
                 </div>
             </div>
 

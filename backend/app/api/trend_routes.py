@@ -220,16 +220,106 @@ async def get_spotify_trends():
         return JSONResponse(content={"items": _mock_spotify_viral(), "mocked": True})
 
 
-@router.get("/social")
-async def get_social_trends():
-    apify_key = os.getenv("APIFY_API_TOKEN")
-    # For initial implementation, since webscraping via Apify requires specific Actors which can take a minute to run, 
-    # we return a structured mock array simulating what Apify returns for viral TikToks/Reels.
+@router.get("/predict")
+async def get_trend_predictions():
+    # 1. Scrape Reddit Signals
+    reddit_data = []
+    subreddits = ["marketing", "tiktokcringe", "memes"]
+    headers = {"User-Agent": "AIfyBackend/1.0 (Trend research agent)"}
     
-    mock_posts = [
-        {"id": "v1", "platform": "tiktok", "author": "@creator_hub", "likes": 2400000, "views": 18000000, "thumbnail": "https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=500&auto=format&fit=crop&q=60", "caption": "The ultimate creator setup 2026 🚀 #tech #setup"},
-        {"id": "v2", "platform": "instagram", "author": "@aesthetics", "likes": 1200000, "views": 8500000, "thumbnail": "https://images.unsplash.com/photo-1516321497487-e288fb19713f?w=500&auto=format&fit=crop&q=60", "caption": "POV: desk tour aesthetic ☁️"},
-        {"id": "v3", "platform": "tiktok", "author": "@ai_daily", "likes": 950000, "views": 4200000, "thumbnail": "https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=500&auto=format&fit=crop&q=60", "caption": "New AI models changed the game today 🤯"},
-        {"id": "v4", "platform": "instagram", "author": "@nomad_life", "likes": 640000, "views": 3100000, "thumbnail": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=500&auto=format&fit=crop&q=60", "caption": "Remote work spots that aren't overhyped 🌴"},
-    ]
-    return JSONResponse(content={"items": mock_posts, "mocked": True, "note": "Add APIFY_API_TOKEN to enable live scraping"})
+    try:
+        async with httpx.AsyncClient() as client:
+            for sub in subreddits:
+                res = await client.get(f"https://www.reddit.com/r/{sub}/top.json?t=day&limit=5", headers=headers, timeout=5.0)
+                if res.status_code == 200:
+                    data = res.json().get("data", {}).get("children", [])
+                    for item in data:
+                        post = item.get("data", {})
+                        # Ignore pinned posts or empty titles
+                        if post.get("title") and not post.get("stickied"):
+                            reddit_data.append({
+                                "title": post.get("title"),
+                                "subreddit": sub,
+                                "score": post.get("score"),
+                                "text": post.get("selftext", "")[:200]
+                            })
+    except Exception as e:
+        print("Reddit scrape failed:", e)
+        
+    # 2. Scrape Tavily Signals (if key exists)
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    tavily_data = []
+    if tavily_key:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.post(
+                    "https://api.tavily.com/search",
+                    json={"api_key": tavily_key, "query": "New emerging digital marketing trends TikTok audio this week", "search_depth": "basic", "include_answer": False},
+                    timeout=10.0
+                )
+                if res.status_code == 200:
+                    t_payload = res.json().get("results", [])
+                    for t in t_payload[:4]:
+                        tavily_data.append({"title": t.get("title"), "content": t.get("content")})
+        except Exception as e:
+            print("Tavily scrape failed:", e)
+            
+    # Mock fallback if both APIs fail completely to ensure UX
+    if not reddit_data and not tavily_data:
+        reddit_data = [{"title": "We found a new AI hook format that is going crazy viral right now", "subreddit": "marketing", "score": 2500, "text": "Just put the hook in a purple box."}]
+     
+    # 3. Brain Synthesis via Groq Llama 3
+    import json
+    groq_api_key = os.getenv("GROQ_API_KEY")
+    if not groq_api_key:
+        return JSONResponse(status_code=400, content={"message": "GROQ_API_KEY is required for synthesis."})
+        
+    raw_dump = f"REDDIT POSTS:\n{json.dumps(reddit_data)}\n\nTAVILY SEARCH:\n{json.dumps(tavily_data)}"
+    
+    prompt = f"""Act as an expert Digital Marketing Trend Forecaster. 
+
+I am providing you with a raw data dump of top daily Reddit posts from meme/creator subreddits, and recent AI search summaries about emerging creator formats.
+
+RAW DATA:
+{raw_dump}
+
+Your task is to analyze this noisy data and identify EXACTLY 3 "Micro-Trends" that are currently bubbling under the surface but have a high probability of going viral in the next 7-14 days. Look for cross-pollination.
+
+Return the output in strictly formatted JSON with the following structure:
+{{
+  "trends": [
+    {{
+      "trend_name": "Name of the predicted trend",
+      "origin_signal": "Where is this starting? (e.g., Niche TikTok community, Reddit)",
+      "virality_hypothesis": "A 2-sentence explanation of WHY human psychology will make this go viral.",
+      "how_to_leverage": "Actionable advice for a brand to use this trend early."
+    }}
+  ]
+}}
+
+Return ONLY the pure JSON object. No Markdown wrappers.
+"""
+    try:
+        async with httpx.AsyncClient() as client:
+            g_res = await client.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_api_key}"},
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.8,
+                    "response_format": {"type": "json_object"}
+                },
+                timeout=30.0
+            ) 
+            if g_res.status_code == 200:
+                content = g_res.json()["choices"][0]["message"]["content"]
+                clean = content.replace("```json", "").replace("```", "").strip()
+                parsed = json.loads(clean)
+                return JSONResponse(content={"items": parsed.get("trends", [])})
+            else:
+                print("Groq API Error in Trends Predict:", g_res.text)
+                return JSONResponse(status_code=500, content={"message": "Synthesis API Error"})
+    except Exception as e:
+        print("Groq failed in Trends Predict:", str(e))
+        return JSONResponse(status_code=500, content={"message": "Synthesis Exception"})
