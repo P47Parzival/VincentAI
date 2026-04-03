@@ -1,3 +1,6 @@
 .env
 venv/
 app/__py*
+app/api/__py*
+app/core/__py*
+app/services/__py*

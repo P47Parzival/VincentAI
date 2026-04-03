@@ -1,5 +1,9 @@
 import json
-from fastapi import APIRouter, Request
+import os
+import httpx
+from fastapi import APIRouter, Request, HTTPException
+from fastapi.responses import StreamingResponse, Response
+from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 from app.services.agent_service import agent_app
 
@@ -38,3 +42,33 @@ async def stream_post(companyDescription: str, socialGoal: str, request: Request
             yield {"data": json.dumps({"step": "error", "error": str(e)})}
             
     return EventSourceResponse(event_generator())
+
+class TTSRequest(BaseModel):
+    text: str
+
+@router.post("/tts")
+async def generate_tts(body: TTSRequest):
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set.")
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.groq.com/openai/v1/audio/speech",
+            headers={
+                "Authorization": f"Bearer {groq_api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "canopylabs/orpheus-v1-english",
+                "input": body.text[:4000],  # safety trim
+                "voice": "austin",
+                "response_format": "wav"
+            },
+            timeout=30.0
+        )
+        
+        if response.status_code != 200:
+            raise HTTPException(status_code=response.status_code, detail=f"TTS error: {response.text}")
+        
+        return Response(content=response.content, media_type="audio/wav")

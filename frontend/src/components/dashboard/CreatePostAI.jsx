@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play } from 'lucide-react';
 
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
@@ -9,6 +9,9 @@ export default function CreatePostAI() {
   const [agentState, setAgentState] = useState({});
   const [error, setError] = useState(null);
   const [isFinished, setIsFinished] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const audioRef = useRef(null);
   
   const generatePost = () => {
     if (!description || !goal) return;
@@ -66,6 +69,31 @@ export default function CreatePostAI() {
 
   const getStepIndex = (stepId) => steps.findIndex(s => s.id === stepId);
   const currentStepIndex = agentStep === 'done' ? steps.length : getStepIndex(agentStep);
+
+  const generateAudio = async () => {
+    if (!agentState.draft) return;
+    try {
+      setIsGeneratingAudio(true);
+      const res = await fetch("http://localhost:4000/api/agents/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: agentState.draft })
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.detail || "Failed to generate audio");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      setAudioUrl(url);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError("Audio Generation Failed: " + err.message);
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -169,9 +197,36 @@ export default function CreatePostAI() {
                             {!agentState.draft && <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-10 flex items-center justify-center text-slate-300 font-medium rounded-[2rem]"><Loader2 className="animate-spin mr-2" size={18} /> Drafting Post Copy...</div>}
                             <div className="absolute top-4 right-4 bg-white/10 backdrop-blur px-3 py-1 rounded-full text-xs font-semibold text-white/80">Copywriter Output</div>
                             <h3 className="font-semibold text-white mb-6 text-xl">Final Draft</h3>
-                            <div className="text-slate-100/90 font-medium whitespace-pre-wrap leading-relaxed">
+                            <div className="text-slate-100/90 font-medium whitespace-pre-wrap leading-relaxed pb-6">
                                 {agentState.draft || "Waiting for copywriter..."}
                             </div>
+                            
+                            {agentState.draft && isFinished && (
+                                <div className="mt-6 pt-6 border-t border-slate-700/50">
+                                    {!audioUrl ? (
+                                        <button 
+                                            onClick={generateAudio}
+                                            disabled={isGeneratingAudio}
+                                            className="flex items-center gap-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 px-4 py-2 rounded-xl transition-all disabled:opacity-50 text-sm font-medium"
+                                        >
+                                            {isGeneratingAudio ? <Loader2 size={16} className="animate-spin" /> : <Volume2 size={16} />} 
+                                            {isGeneratingAudio ? 'Generating Voice...' : 'Listen to Draft'}
+                                        </button>
+                                    ) : (
+                                        <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700 w-full flex items-center justify-between gap-4">
+                                            <audio ref={audioRef} controls src={audioUrl} className="w-full h-10 outline-none bg-slate-800" autoPlay />
+                                            <a 
+                                                href={audioUrl} 
+                                                download="draft_speech.wav"
+                                                className="shrink-0 flex items-center justify-center bg-purple-600 hover:bg-purple-500 text-white p-2.5 rounded-xl transition-colors shadow-sm"
+                                                title="Download Audio"
+                                            >
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="p-8 bg-slate-50 rounded-[2rem] border border-dashed border-slate-300 flex flex-col items-center justify-center h-full min-h-[300px] text-slate-400">
@@ -192,6 +247,7 @@ export default function CreatePostAI() {
                             setAgentState({});
                             setDescription('');
                             setGoal('');
+                            setAudioUrl(null);
                         }}
                         className="px-8 py-3 bg-white border border-slate-200 text-slate-600 font-semibold rounded-2xl hover:bg-slate-50 transition-colors shadow-sm"
                     >
