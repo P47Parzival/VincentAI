@@ -54,6 +54,7 @@ Server default: `http://localhost:4000`
 - `GET /api/analytics/youtube?channelId=<id>&maxResults=8`
 - `GET /api/analytics/twitter?username=<handle>&maxResults=10`
 - `GET /api/analytics/linkedin?profileUrl=<linkedin_profile_url>&maxResults=5`
+- `GET /api/analytics/detail?platform=instagram|youtube&itemId=<id>&username=<optional>&channelId=<optional>&maxComments=80`
 
 If `username`, `channelId`, or `profileUrl` are omitted, backend falls back to `.env` values.
 

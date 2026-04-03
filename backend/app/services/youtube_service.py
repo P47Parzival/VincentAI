@@ -1,4 +1,5 @@
 import os
+import asyncio
 from datetime import date, timedelta
 from typing import Any
 
@@ -7,6 +8,46 @@ import httpx
 from app.core.config import get_youtube_analytics_lookback_days
 from app.core.exceptions import UpstreamRequestError
 from app.core.http import fetch_json, parse_number
+
+
+async def fetch_youtube_comment_preview(
+    client: httpx.AsyncClient,
+    api_key: str,
+    video_id: str,
+    max_comments: int = 3,
+) -> list[str]:
+    if not video_id:
+        return []
+
+    try:
+        payload = await fetch_json(
+            client,
+            "https://www.googleapis.com/youtube/v3/commentThreads",
+            params={
+                "part": "snippet",
+                "videoId": video_id,
+                "maxResults": max_comments,
+                "textFormat": "plainText",
+                "order": "relevance",
+                "key": api_key,
+            },
+        )
+    except Exception:
+        return []
+
+    rows = payload.get("items") if isinstance(payload.get("items"), list) else []
+    comments: list[str] = []
+    for row in rows:
+        top_level = (
+            (row.get("snippet") or {})
+            .get("topLevelComment", {})
+            .get("snippet", {})
+        )
+        text = str(top_level.get("textDisplay") or top_level.get("textOriginal") or "").strip()
+        if text:
+            comments.append(text)
+
+    return comments[:max_comments]
 
 
 async def get_youtube_oauth_access_token(client: httpx.AsyncClient) -> str | None:
@@ -191,6 +232,25 @@ async def fetch_youtube_analytics(
             recent_videos_params,
         )
 
+        recent_items = recent_payload.get("items") if isinstance(recent_payload.get("items"), list) else []
+        video_ids = [
+            item.get("id", {}).get("videoId")
+            for item in recent_items
+            if isinstance(item, dict) and item.get("id", {}).get("videoId")
+        ]
+
+        comment_results = await asyncio.gather(
+            *(
+                fetch_youtube_comment_preview(client, api_key, video_id)
+                for video_id in video_ids
+            ),
+            return_exceptions=True,
+        )
+        comments_by_video_id: dict[str, list[str]] = {}
+        for idx, video_id in enumerate(video_ids):
+            result = comment_results[idx]
+            comments_by_video_id[video_id] = result if isinstance(result, list) else []
+
         oauth_access_token = await get_youtube_oauth_access_token(client)
 
         analytics_metrics: dict[str, int | float] | None = None
@@ -206,7 +266,6 @@ async def fetch_youtube_analytics(
             except UpstreamRequestError as error:
                 analytics_error = f"YouTube Analytics API error: {error.message}"
 
-    recent_items = recent_payload.get("items") if isinstance(recent_payload.get("items"), list) else []
     recent_videos = [
         {
             "videoId": item.get("id", {}).get("videoId"),
@@ -216,6 +275,7 @@ async def fetch_youtube_analytics(
                 item.get("snippet", {}).get("thumbnails", {}).get("medium", {}).get("url")
                 or item.get("snippet", {}).get("thumbnails", {}).get("default", {}).get("url")
             ),
+            "comments_preview": comments_by_video_id.get(item.get("id", {}).get("videoId"), []),
         }
         for item in recent_items
     ]

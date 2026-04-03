@@ -39,6 +39,47 @@ def _safe_int(val) -> int:
         return 0
 
 
+def _extract_instagram_comment_texts(post: dict[str, Any], limit: int = 3) -> list[str]:
+    candidates: list[str] = []
+
+    possible_lists = [
+        post.get("latestComments"),
+        post.get("latest_comments"),
+        post.get("previewComments"),
+        post.get("comments"),
+        (post.get("edge_media_to_parent_comment") or {}).get("edges"),
+        (post.get("edge_media_to_comment") or {}).get("edges"),
+    ]
+
+    for comment_list in possible_lists:
+        if not isinstance(comment_list, list):
+            continue
+
+        for entry in comment_list:
+            if isinstance(entry, dict):
+                node = entry.get("node") if isinstance(entry.get("node"), dict) else entry
+                text = (
+                    node.get("text")
+                    or node.get("comment")
+                    or node.get("content")
+                    or node.get("body")
+                    or ""
+                )
+            elif isinstance(entry, str):
+                text = entry
+            else:
+                text = ""
+
+            clean = str(text).strip()
+            if clean:
+                candidates.append(clean)
+
+            if len(candidates) >= limit:
+                return candidates[:limit]
+
+    return candidates[:limit]
+
+
 async def fetch_instagram_analytics(
     username_override: str | None,
     media_limit: int,
@@ -84,12 +125,14 @@ async def fetch_instagram_analytics(
             post = post["node"]
         likes    = _safe_int(post.get("likesCount") or post.get("edge_media_preview_like", {}).get("count") or 0)
         comments = _safe_int(post.get("commentsCount") or post.get("edge_media_to_comment", {}).get("count") or 0)
+        comments_preview = _extract_instagram_comment_texts(post, limit=3)
         items.append({
             "id"            : post.get("id") or post.get("shortCode"),
             "caption"       : post.get("caption") or post.get("edge_media_to_caption", {}).get("edges", [{}])[0].get("node", {}).get("text") or "(no caption)",
             "publishedAt"   : post.get("timestamp"),
             "like_count"    : likes,
             "comments_count": comments,
+            "comments_preview": comments_preview,
             "media_url"     : post.get("displayUrl") or post.get("thumbnail_url"),
             "media_type"    : (post.get("type") or "IMAGE").upper(),
             "permalink"     : post.get("url") or f"https://instagram.com/p/{post.get('shortCode', '')}",

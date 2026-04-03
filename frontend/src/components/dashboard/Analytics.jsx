@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlertCircle,
@@ -28,6 +29,7 @@ const formatNumber = (value) => {
 };
 
 export default function Analytics() {
+  const navigate = useNavigate();
   const [activePlatform, setActivePlatform] = useState('instagram');
   const [filters, setFilters] = useState({
     instagram: { username: '', mediaLimit: 10 },
@@ -246,6 +248,30 @@ export default function Analytics() {
   const onFetchSubmit = (event) => {
     event.preventDefault();
     loadPlatformData(activePlatform);
+  };
+
+  const openDetailPage = (item) => {
+    if (!(activePlatform === 'instagram' || activePlatform === 'youtube')) {
+      return;
+    }
+
+    const itemId = item?.id || item?.videoId;
+    if (!itemId) {
+      return;
+    }
+
+    const search = new URLSearchParams();
+    if (activePlatform === 'instagram' && filters.instagram.username) {
+      search.set('username', filters.instagram.username);
+    }
+    if (activePlatform === 'youtube' && filters.youtube.channelId) {
+      search.set('channelId', filters.youtube.channelId);
+    }
+
+    const suffix = search.toString() ? `?${search.toString()}` : '';
+    navigate(`/dashboard/analytics/${activePlatform}/${encodeURIComponent(String(itemId))}${suffix}`, {
+      state: { item },
+    });
   };
 
   return (
@@ -495,10 +521,21 @@ export default function Analytics() {
                       key={item.id || item.videoId}
                       className="p-4 rounded-2xl bg-white/5 border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-between gap-3 hover:bg-white/10 transition-colors backdrop-blur-md"
                     >
-                      <div className="min-w-0">
-                        <p className="font-semibold text-white truncate">
-                          {item.title || item.caption || 'Untitled'}
-                        </p>
+                      <div className="min-w-0 flex-1">
+                        {(activePlatform === 'instagram' || activePlatform === 'youtube') ? (
+                          <button
+                            type="button"
+                            onClick={() => openDetailPage(item)}
+                            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white text-left hover:text-[#00F5FF] transition-colors underline-offset-4 hover:underline"
+                            title="Open detailed analysis"
+                          >
+                            {item.title || item.caption || 'Untitled'}
+                          </button>
+                        ) : (
+                          <p className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white">
+                            {item.title || item.caption || 'Untitled'}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">
                           {item.media_type || 'VIDEO'}
                           {item.publishedAt || item.timestamp

@@ -39,3 +39,9 @@ export const fetchLinkedinAnalytics = async (params = {}) => {
   const response = await fetch(`/api/analytics/linkedin${query ? `?${query}` : ''}`);
   return handleResponse(response);
 };
+
+export const fetchAnalyticsDetail = async (params = {}) => {
+  const query = toQuery(params);
+  const response = await fetch(`/api/analytics/detail${query ? `?${query}` : ''}`);
+  return handleResponse(response);
+};
