@@ -4,6 +4,8 @@ from fastapi.responses import JSONResponse
 from app.core.exceptions import UpstreamRequestError
 from app.services.instagram_service import fetch_instagram_analytics
 from app.services.youtube_service import fetch_youtube_analytics
+from app.services.twitter_service import fetch_twitter_analytics
+from app.services.linkedin_service import fetch_linkedin_analytics
 from app.api.agent_routes import router as agent_router
 from app.api.trend_routes import router as trend_router
 
@@ -62,4 +64,48 @@ async def get_youtube_analytics(
         return JSONResponse(
             status_code=500,
             content={"message": "Failed to fetch YouTube analytics.", "details": str(error), "traceback": traceback.format_exc()},
+        )
+
+@router.get("/analytics/twitter")
+async def get_twitter_analytics(
+    username: str | None = Query(default=None),
+    maxResults: int = Query(default=5, ge=5, le=100),
+) -> JSONResponse:
+    try:
+        payload = await fetch_twitter_analytics(username, maxResults)
+        return JSONResponse(content=payload)
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"message": str(error)})
+    except UpstreamRequestError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"message": error.message, "details": error.payload},
+        )
+    except Exception as error:
+        import traceback
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Failed to fetch Twitter analytics.", "details": str(error), "traceback": traceback.format_exc()},
+        )
+
+@router.get("/analytics/linkedin")
+async def get_linkedin_analytics(
+    profileUrl: str | None = Query(default=None),
+    maxResults: int = Query(default=5, ge=1, le=50),
+) -> JSONResponse:
+    try:
+        payload = await fetch_linkedin_analytics(profileUrl, maxResults)
+        return JSONResponse(content=payload)
+    except ValueError as error:
+        return JSONResponse(status_code=400, content={"message": str(error)})
+    except UpstreamRequestError as error:
+        return JSONResponse(
+            status_code=error.status_code,
+            content={"message": error.message, "details": error.payload},
+        )
+    except Exception as error:
+        import traceback
+        return JSONResponse(
+            status_code=500,
+            content={"message": "Failed to fetch LinkedIn analytics.", "details": str(error), "traceback": traceback.format_exc()},
         )

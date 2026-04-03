@@ -6,11 +6,16 @@ import {
   Eye,
   RefreshCw,
   Users,
-  Video
+  Video,
+  MessageSquare,
+  Award,
+  Briefcase
 } from 'lucide-react';
 import {
   fetchInstagramAnalytics,
-  fetchYouTubeAnalytics
+  fetchYouTubeAnalytics,
+  fetchTwitterAnalytics,
+  fetchLinkedinAnalytics
 } from '../../services/analyticsApi';
 
 const numberFormatter = new Intl.NumberFormat('en-US');
@@ -26,11 +31,13 @@ export default function Analytics() {
   const [activePlatform, setActivePlatform] = useState('instagram');
   const [filters, setFilters] = useState({
     instagram: { igUserId: '', mediaLimit: 10 },
-    youtube: { channelId: '', maxResults: 8 }
+    youtube: { channelId: '', maxResults: 8 },
+    twitter: { username: '', maxResults: 5 },
+    linkedin: { profileUrl: '', maxResults: 5 }
   });
-  const [dataMap, setDataMap] = useState({ instagram: null, youtube: null });
-  const [loadingMap, setLoadingMap] = useState({ instagram: false, youtube: false });
-  const [errorMap, setErrorMap] = useState({ instagram: '', youtube: '' });
+  const [dataMap, setDataMap] = useState({ instagram: null, youtube: null, twitter: null, linkedin: null });
+  const [loadingMap, setLoadingMap] = useState({ instagram: false, youtube: false, twitter: false, linkedin: false });
+  const [errorMap, setErrorMap] = useState({ instagram: '', youtube: '', twitter: '', linkedin: '' });
 
   const loadPlatformData = async (platform) => {
     setLoadingMap((prev) => ({ ...prev, [platform]: true }));
@@ -40,9 +47,15 @@ export default function Analytics() {
       if (platform === 'instagram') {
         const payload = await fetchInstagramAnalytics(filters.instagram);
         setDataMap((prev) => ({ ...prev, instagram: payload }));
-      } else {
+      } else if (platform === 'youtube') {
         const payload = await fetchYouTubeAnalytics(filters.youtube);
         setDataMap((prev) => ({ ...prev, youtube: payload }));
+      } else if (platform === 'twitter') {
+        const payload = await fetchTwitterAnalytics(filters.twitter);
+        setDataMap((prev) => ({ ...prev, twitter: payload }));
+      } else if (platform === 'linkedin') {
+        const payload = await fetchLinkedinAnalytics(filters.linkedin);
+        setDataMap((prev) => ({ ...prev, linkedin: payload }));
       }
     } catch (error) {
       setErrorMap((prev) => ({
@@ -110,35 +123,109 @@ export default function Analytics() {
       ];
     }
 
+    if (activePlatform === 'youtube') {
+      return [
+        {
+          title: 'Subscribers',
+          value: formatNumber(activeData.metrics.subscribersCount),
+          icon: Users,
+          color: 'text-[#FF3D6E]',
+          bg: 'bg-[#FF3D6E]/10',
+          border: 'border-[#FF3D6E]/20'
+        },
+        {
+          title: 'Estimated Reach',
+          value: formatNumber(activeData.metrics.estimatedReach),
+          icon: Activity,
+          color: 'text-[#00F5FF]',
+          bg: 'bg-[#00F5FF]/10',
+          border: 'border-[#00F5FF]/20'
+        },
+        {
+          title: 'Estimated Impressions',
+          value: formatNumber(activeData.metrics.estimatedImpressions),
+          icon: Eye,
+          color: 'text-[#8B5CF6]',
+          bg: 'bg-[#8B5CF6]/10',
+          border: 'border-[#8B5CF6]/20'
+        },
+        {
+          title: 'Videos Uploaded',
+          value: formatNumber(activeData.metrics.videosUploaded),
+          icon: Video,
+          color: 'text-[#FF3D6E]',
+          bg: 'bg-[#FF3D6E]/10',
+          border: 'border-[#FF3D6E]/20'
+        }
+      ];
+    }
+    
+    if (activePlatform === 'twitter') {
+      return [
+        {
+          title: 'Followers',
+          value: formatNumber(activeData.metrics.followersCount),
+          icon: Users,
+          color: 'text-[#00F5FF]',
+          bg: 'bg-[#00F5FF]/10',
+          border: 'border-[#00F5FF]/20'
+        },
+        {
+          title: 'Following',
+          value: formatNumber(activeData.metrics.followingCount),
+          icon: Activity,
+          color: 'text-[#8B5CF6]',
+          bg: 'bg-[#8B5CF6]/10',
+          border: 'border-[#8B5CF6]/20'
+        },
+        {
+          title: 'Total Tweets',
+          value: formatNumber(activeData.metrics.tweetCount),
+          icon: MessageSquare,
+          color: 'text-[#FF3D6E]',
+          bg: 'bg-[#FF3D6E]/10',
+          border: 'border-[#FF3D6E]/20'
+        },
+        {
+          title: 'Listed Count',
+          value: formatNumber(activeData.metrics.listedCount),
+          icon: Eye,
+          color: 'text-[#00F5FF]',
+          bg: 'bg-[#00F5FF]/10',
+          border: 'border-[#00F5FF]/20'
+        }
+      ];
+    }
+    
     return [
       {
-        title: 'Subscribers',
-        value: formatNumber(activeData.metrics.subscribersCount),
+        title: 'Connections',
+        value: formatNumber(activeData.metrics.connectionsCount),
         icon: Users,
-        color: 'text-[#FF3D6E]',
-        bg: 'bg-[#FF3D6E]/10',
-        border: 'border-[#FF3D6E]/20'
+        color: 'text-[#0a66c2]', // LinkedIn Blue
+        bg: 'bg-[#0a66c2]/10',
+        border: 'border-[#0a66c2]/20'
       },
       {
-        title: 'Estimated Reach',
-        value: formatNumber(activeData.metrics.estimatedReach),
+        title: 'Followers',
+        value: formatNumber(activeData.metrics.followersCount),
         icon: Activity,
         color: 'text-[#00F5FF]',
         bg: 'bg-[#00F5FF]/10',
         border: 'border-[#00F5FF]/20'
       },
       {
-        title: 'Estimated Impressions',
-        value: formatNumber(activeData.metrics.estimatedImpressions),
-        icon: Eye,
+        title: 'Certifications',
+        value: formatNumber(activeData.metrics.certificationsCount),
+        icon: Award,
         color: 'text-[#8B5CF6]',
         bg: 'bg-[#8B5CF6]/10',
         border: 'border-[#8B5CF6]/20'
       },
       {
-        title: 'Videos Uploaded',
-        value: formatNumber(activeData.metrics.videosUploaded),
-        icon: Video,
+        title: 'Experiences',
+        value: formatNumber(activeData.metrics.experiencesCount),
+        icon: Briefcase,
         color: 'text-[#FF3D6E]',
         bg: 'bg-[#FF3D6E]/10',
         border: 'border-[#FF3D6E]/20'
@@ -166,21 +253,46 @@ export default function Analytics() {
       <div className="p-2 rounded-2xl bg-white/5 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-md inline-flex gap-2">
         {[
           { id: 'instagram', label: 'Instagram', icon: Camera },
-          { id: 'youtube', label: 'YouTube', icon: Video }
+          { id: 'youtube', label: 'YouTube', icon: Video },
+          { id: 'twitter', label: 'X (Twitter)', icon: MessageSquare },
+          { id: 'linkedin', label: 'LinkedIn', icon: Briefcase }
         ].map((platform) => {
           const Icon = platform.icon;
           const isActive = activePlatform === platform.id;
+          
+          let glowColor = 'rgba(255,61,110,0.1)';
+          let activeBorder = 'border-[#FF3D6E]/20';
+          let activeText = 'text-[#FF3D6E]';
+          let activeBg = 'bg-[#FF3D6E]/10';
+
+          if (platform.id === 'youtube') {
+            glowColor = 'rgba(0,245,255,0.1)';
+            activeBorder = 'border-[#00F5FF]/20';
+            activeText = 'text-[#00F5FF]';
+            activeBg = 'bg-[#00F5FF]/10';
+          } else if (platform.id === 'twitter') {
+            glowColor = 'rgba(139,92,246,0.1)';
+            activeBorder = 'border-[#8B5CF6]/20';
+            activeText = 'text-[#8B5CF6]';
+            activeBg = 'bg-[#8B5CF6]/10';
+          } else if (platform.id === 'linkedin') {
+            glowColor = 'rgba(10,102,194,0.1)';
+            activeBorder = 'border-[#0a66c2]/20';
+            activeText = 'text-[#0a66c2]';
+            activeBg = 'bg-[#0a66c2]/10';
+          }
+
           return (
             <button
               key={platform.id}
               onClick={() => setActivePlatform(platform.id)}
               className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${
                 isActive
-                  ? 'bg-[#FF3D6E]/10 text-white border border-[#FF3D6E]/20 shadow-[0_0_16px_rgba(255,61,110,0.1)]'
+                  ? `${activeBg} text-white border ${activeBorder} shadow-[0_0_16px_${glowColor}]`
                   : 'text-gray-400 hover:bg-white/5 border border-transparent hover:border-white/10'
               }`}
             >
-              <Icon size={17} className={isActive ? 'text-[#FF3D6E]' : ''} />
+              <Icon size={17} className={isActive ? activeText : ''} />
               <span>{platform.label}</span>
             </button>
           );
@@ -222,7 +334,7 @@ export default function Analytics() {
               {isLoading ? 'Fetching...' : 'Fetch Instagram Data'}
             </button>
           </div>
-        ) : (
+        ) : activePlatform === 'youtube' ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
             <label className="block">
               <span className="text-xs font-bold uppercase tracking-widest text-gray-500">YouTube Channel ID</span>
@@ -251,6 +363,68 @@ export default function Analytics() {
               className="h-[42px] rounded-xl bg-[#00F5FF]/20 text-[#00F5FF] border border-[#00F5FF]/30 font-medium hover:bg-[#00F5FF]/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_16px_rgba(0,245,255,0.2)]"
             >
               {isLoading ? 'Fetching...' : 'Fetch YouTube Data'}
+            </button>
+          </div>
+        ) : activePlatform === 'twitter' ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Twitter Username</span>
+              <input
+                type="text"
+                value={filters.twitter.username}
+                onChange={(event) => onFilterChange('twitter', 'username', event.target.value)}
+                placeholder="Optional if set in backend .env"
+                className="mt-2 w-full rounded-xl bg-[#080808]/50 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/50 focus:border-[#8B5CF6]/50 transition-colors placeholder-gray-600"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Tweets Count</span>
+              <input
+                type="number"
+                min="5"
+                max="100"
+                value={filters.twitter.maxResults}
+                onChange={(event) => onFilterChange('twitter', 'maxResults', event.target.value)}
+                className="mt-2 w-full rounded-xl bg-[#080808]/50 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/50 focus:border-[#8B5CF6]/50 transition-colors"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="h-[42px] rounded-xl bg-[#8B5CF6]/20 text-[#8B5CF6] border border-[#8B5CF6]/30 font-medium hover:bg-[#8B5CF6]/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_16px_rgba(139,92,246,0.2)]"
+            >
+              {isLoading ? 'Fetching...' : 'Fetch Twitter Data'}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">LinkedIn Profile URL</span>
+              <input
+                type="text"
+                value={filters.linkedin.profileUrl}
+                onChange={(event) => onFilterChange('linkedin', 'profileUrl', event.target.value)}
+                placeholder="https://linkedin.com/in/..."
+                className="mt-2 w-full rounded-xl bg-[#080808]/50 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/50 focus:border-[#0a66c2]/50 transition-colors placeholder-gray-600"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Posts Count</span>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={filters.linkedin.maxResults}
+                onChange={(event) => onFilterChange('linkedin', 'maxResults', event.target.value)}
+                className="mt-2 w-full rounded-xl bg-[#080808]/50 border border-white/10 px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-[#0a66c2]/50 focus:border-[#0a66c2]/50 transition-colors"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="h-[42px] rounded-xl bg-[#0a66c2]/20 text-[#0a66c2] border border-[#0a66c2]/30 font-medium hover:bg-[#0a66c2]/30 transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_16px_rgba(10,102,194,0.2)]"
+            >
+              {isLoading ? 'Fetching...' : 'Fetch LinkedIn Data'}
             </button>
           </div>
         )}
@@ -295,7 +469,7 @@ export default function Analytics() {
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <h3 className="text-2xl text-white font-bold" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
-                    {activePlatform === 'instagram' ? 'Instagram' : 'YouTube'} Feed Snapshot
+                    {activePlatform === 'instagram' ? 'Instagram' : activePlatform === 'youtube' ? 'YouTube' : activePlatform === 'twitter' ? 'X (Twitter)' : 'LinkedIn'} Feed Snapshot
                   </h3>
                   <p className="text-gray-400 mt-1 text-sm">
                     Showing latest {activeData?.items?.length || 0} records from your connected account.
@@ -341,7 +515,7 @@ export default function Analytics() {
                           />
                         ) : (
                           <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-500">
-                            <Video size={18} />
+                            {activePlatform === 'twitter' ? <MessageSquare size={18} /> : activePlatform === 'linkedin' ? <Briefcase size={18} /> : <Video size={18} />}
                           </div>
                         )}
                       </div>

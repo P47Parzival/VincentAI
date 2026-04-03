@@ -27,3 +27,15 @@ export const fetchYouTubeAnalytics = async (params = {}) => {
   const response = await fetch(`/api/analytics/youtube${query ? `?${query}` : ''}`);
   return handleResponse(response);
 };
+
+export const fetchTwitterAnalytics = async (params = {}) => {
+  const query = toQuery(params);
+  const response = await fetch(`/api/analytics/twitter${query ? `?${query}` : ''}`);
+  return handleResponse(response);
+};
+
+export const fetchLinkedinAnalytics = async (params = {}) => {
+  const query = toQuery(params);
+  const response = await fetch(`/api/analytics/linkedin${query ? `?${query}` : ''}`);
+  return handleResponse(response);
+};

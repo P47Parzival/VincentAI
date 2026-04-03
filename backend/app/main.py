@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import router as api_router
+from app.api.linkedin_auth import router as linkedin_oauth_router
 from app.core.config import get_backend_port, get_frontend_origin
 
 app = FastAPI(title="Backend Analytics API", version="1.0.0")
@@ -17,6 +18,7 @@ app.add_middleware(
 )
 
 app.include_router(api_router)
+app.include_router(linkedin_oauth_router)
 
 
 if __name__ == "__main__":
