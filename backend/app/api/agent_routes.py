@@ -1,5 +1,7 @@
 import json
 import os
+import re as _re
+import html
 import httpx
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import StreamingResponse, Response
@@ -86,6 +88,11 @@ async def analyze_url(req: AnalyzeURLRequest):
     likes = 0
     comments = 0
     projected_likes = 0
+    thumbnail_url = None    # Real post preview image
+    video_url = None        # Direct video stream URL (if available)
+    video_embed_url = None  # Embeddable URL (YouTube iframe etc)
+    frame_thumbnails = []   # Real frame images for the retention analysis
+    oembed_html = None      # Twitter/Instagram oEmbed HTML blob
     projected_comments = 0
     
     if "instagram.com" in req.url: domain = "instagram"
@@ -118,7 +125,13 @@ async def analyze_url(req: AnalyzeURLRequest):
                     data = res.json()
                     if len(data) > 0:
                         first_item = data[0]
+                        # DEBUG: Log raw Apify response schema to help diagnose media extraction
+                        print("[APIFY DEBUG] Keys:", list(first_item.keys())[:20])
                         scraped_text = first_item.get("caption", first_item.get("text", first_item.get("full_text", str(first_item))))
+                        # Decode HTML entities (e.g. &amp; → &, &gt; → >, etc.)
+                        scraped_text = html.unescape(scraped_text)
+                        # Strip t.co and other short-link URLs from scraped text
+                        scraped_text = _re.sub(r'https?://\S+', '', scraped_text).strip()
                         
                         # Agnostic extraction of engagement metrics across multiple platforms
                         likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", 0))))
@@ -129,6 +142,70 @@ async def analyze_url(req: AnalyzeURLRequest):
                         except: likes = 0
                         try: comments = int(comments)
                         except: comments = 0
+                        
+                        # --- Extract media assets ---
+                        # YouTube: extract video ID → build embed + real frame thumbnails
+                        if domain == "youtube":
+                            yt_id_match = _re.search(r'(?:v=|youtu\.be/)([\w-]{11})', req.url)
+                            if yt_id_match:
+                                yt_id = yt_id_match.group(1)
+                                video_embed_url = f"https://www.youtube.com/embed/{yt_id}?autoplay=0"
+                                thumbnail_url = f"https://img.youtube.com/vi/{yt_id}/hqdefault.jpg"
+                                # YouTube CDN exposes genuine sampled frames at indices 1, 2, 3
+                                frame_thumbnails = [
+                                    f"https://img.youtube.com/vi/{yt_id}/1.jpg",
+                                    f"https://img.youtube.com/vi/{yt_id}/2.jpg",
+                                    f"https://img.youtube.com/vi/{yt_id}/3.jpg",
+                                ]
+                        else:
+                            # For Twitter/Instagram/LinkedIn — probe many possible schema shapes
+                            # Twitter: extended_entities.media[] or entities.media[] or attachments.media_keys
+                            # Instagram: displayUrl, images[]
+                            # LinkedIn: image, thumbnail
+                            media_list = (
+                                first_item.get("media") or
+                                first_item.get("extendedMedia") or
+                                (first_item.get("extended_entities") or {}).get("media") or
+                                (first_item.get("entities") or {}).get("media") or
+                                first_item.get("photos") or
+                                first_item.get("images") or
+                                None
+                            )
+                            # Flatten a string display URL
+                            if isinstance(media_list, str):
+                                thumbnail_url = media_list
+                            elif isinstance(media_list, list) and len(media_list) > 0:
+                                media_item = media_list[0]
+                                if isinstance(media_item, dict):
+                                    thumbnail_url = (
+                                        media_item.get("media_url_https") or
+                                        media_item.get("previewImageUrl") or
+                                        media_item.get("image_url") or
+                                        media_item.get("url")
+                                    )
+                                    # Try to extract video variants (Twitter format)
+                                    variants = (
+                                        (media_item.get("video_info") or {}).get("variants") or
+                                        media_item.get("variants") or []
+                                    )
+                                    if variants:
+                                        mp4_variants = [v for v in variants if v.get("content_type") == "video/mp4"]
+                                        if mp4_variants:
+                                            video_url = max(mp4_variants, key=lambda v: v.get("bitrate", 0)).get("url")
+                                elif isinstance(media_item, str):
+                                    thumbnail_url = media_item
+                            # Also check a flat displayUrl/thumbnailUrl at top-level
+                            if not thumbnail_url:
+                                thumbnail_url = (
+                                    first_item.get("displayUrl") or
+                                    first_item.get("thumbnailUrl") or
+                                    first_item.get("thumbnail") or
+                                    first_item.get("previewUrl")
+                                )
+                            # Use thumbnail as repeated frame image
+                            if thumbnail_url:
+                                frame_thumbnails = [thumbnail_url, thumbnail_url, thumbnail_url]
+                            print("[MEDIA DEBUG] thumbnail_url:", thumbnail_url, "video_url:", video_url)
                     else:
                         scrape_error = "Apify returned an empty dataset []."
                         print(scrape_error)
@@ -145,6 +222,23 @@ async def analyze_url(req: AnalyzeURLRequest):
         elif domain == "youtube": scraped_text = "In this video I review the new AI gadgets of 2026. Watch till the end to see the giveaway!"
         elif domain == "twitter": scraped_text = "Building tools for AI is the best thing ever. Engagement is crazy."
         else: scraped_text = "Wow this is an amazing post!"
+    
+    # For Twitter/X — always try oEmbed so we can show the real embedded tweet
+    if domain == "twitter" and not video_embed_url:
+        try:
+            async with httpx.AsyncClient() as client:
+                oe = await client.get(
+                    "https://publish.twitter.com/oembed",
+                    params={"url": req.url, "omit_script": "true", "theme": "dark", "dnt": "true"},
+                    timeout=8.0
+                )
+                if oe.status_code == 200:
+                    oembed_html = oe.json().get("html", None)
+                    print("[OEMBED] Twitter oEmbed fetched successfully.")
+                else:
+                    print("[OEMBED] Twitter oEmbed failed:", oe.status_code)
+        except Exception as oe_err:
+            print("[OEMBED] Exception:", oe_err)
         
     # 2. AI REWRITE via GROQ
     groq_api_key = os.environ.get("GROQ_API_KEY")
@@ -187,6 +281,10 @@ Return ONLY a raw, pure JSON object. No Markdown wrappers.
                         parsed = json.loads(clean)
                         
                         enhanced_text = parsed.get("enhanced_text", "")
+                        # Strip ALL URLs from the AI output (t.co, https://, etc.)
+                        enhanced_text = _re.sub(r'https?://\S+', '', enhanced_text).strip()
+                        # Clean up double spaces or trailing punctuation left after strip
+                        enhanced_text = _re.sub(r'[ \t]{2,}', ' ', enhanced_text).strip()
                         video_frames = parsed.get("video_analysis", [])
                         proj = parsed.get("projected_engagement", {})
                         
@@ -201,13 +299,18 @@ Return ONLY a raw, pure JSON object. No Markdown wrappers.
             print("Groq rewrite failed:", str(e))
             
     return {
-        "platform": domain, 
-        "original_text": scraped_text, 
+        "platform": domain,
+        "original_text": scraped_text,
         "original_likes": likes,
         "original_comments": comments,
-        "enhanced_text": enhanced_text, 
+        "enhanced_text": enhanced_text,
         "projected_likes": projected_likes,
         "projected_comments": projected_comments,
         "video_analysis": video_frames,
-        "scrape_error": scrape_error
+        "scrape_error": scrape_error,
+        "thumbnail_url": thumbnail_url,
+        "video_url": video_url,
+        "video_embed_url": video_embed_url,
+        "frame_thumbnails": frame_thumbnails,
+        "oembed_html": oembed_html,
     }

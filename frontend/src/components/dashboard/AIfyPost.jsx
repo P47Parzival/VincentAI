@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Search, Sparkles, AlertCircle, Video, Clock, CheckCircle2, Play, Activity, Heart, MessageCircle, TrendingUp } from 'lucide-react';
+import { Search, Sparkles, AlertCircle, Video, CheckCircle2, Play, Activity, Heart, MessageCircle, TrendingUp, ExternalLink } from 'lucide-react';
+
 export default function AIfyPost() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,148 @@ export default function AIfyPost() {
     }
   };
 
+  // Decide what to render in the video slot
+  const renderVideoAsset = () => {
+    if (!result) return null;
+
+    // Twitter/X: Use oEmbed HTML — shows the real tweet with any embedded video/GIF
+    if (result.oembed_html) {
+      const tweetPage = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #000; display: flex; justify-content: center; padding: 12px; }
+  .twitter-tweet { margin: 0 auto !important; }
+</style>
+</head>
+<body>
+${result.oembed_html}
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+</body>
+</html>`;
+      return (
+        <div className="mt-6 rounded-2xl overflow-hidden border border-white/10 shadow-inner bg-black" style={{ minHeight: '280px' }}>
+          <iframe
+            srcDoc={tweetPage}
+            sandbox="allow-scripts allow-same-origin allow-popups"
+            className="w-full"
+            style={{ minHeight: '280px', border: 'none' }}
+            title="Embedded Tweet"
+          />
+        </div>
+      );
+    }
+
+    // YouTube: embed via iframe
+    if (result.video_embed_url) {
+      return (
+        <div className="mt-6 aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-inner">
+          <iframe
+            src={result.video_embed_url}
+            className="w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title="YouTube video"
+          />
+        </div>
+      );
+    }
+
+    // Twitter/Instagram: direct video URL
+    if (result.video_url) {
+      return (
+        <div className="mt-6 aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-inner bg-[#080808]">
+          <video
+            src={result.video_url}
+            controls
+            className="w-full h-full object-contain"
+            poster={result.thumbnail_url || undefined}
+          />
+        </div>
+      );
+    }
+
+    // Only thumbnail available (image post or no video)
+    if (result.thumbnail_url) {
+      return (
+        <div className="mt-6 aspect-video rounded-2xl overflow-hidden border border-white/10 shadow-inner bg-[#080808] relative">
+          <img
+            src={result.thumbnail_url}
+            alt="Post thumbnail"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur text-[10px] text-gray-300 px-2 py-1 rounded-lg border border-white/10">
+            Post Preview
+          </div>
+        </div>
+      );
+    }
+
+    // Fallback: placeholder
+    return (
+      <div className="mt-6 aspect-video bg-[#080808] border border-white/10 rounded-2xl relative overflow-hidden flex items-center justify-center shadow-inner">
+        <Video className="text-white/20" size={64} />
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
+          <Play className="text-[#FF3D6E] fill-[#FF3D6E] mb-2 shadow-[0_0_16px_rgba(255,61,110,0.5)]" size={32} />
+          <p className="text-white/90 text-sm font-semibold">No embed available</p>
+        </div>
+      </div>
+    );
+  };
+
+  // Render frame cards — use real frame_thumbnails when available
+  const renderFrameCard = (frame, i) => {
+    const realThumb = result.frame_thumbnails && result.frame_thumbnails[i];
+    const gradients = [
+      'from-[#8B5CF6]/40 via-[#1a0f2e] to-[#080808]',
+      'from-[#FF3D6E]/40 via-[#1a0808] to-[#080808]',
+      'from-[#00F5FF]/25 via-[#00141a] to-[#080808]',
+    ];
+    const grad = gradients[i % gradients.length];
+
+    return (
+      <div key={i} className="rounded-2xl overflow-hidden border border-white/10 shadow-lg group hover:border-white/20 transition-all">
+        {/* Frame thumbnail – real image or gradient fallback */}
+        <div className={`relative h-36 overflow-hidden ${realThumb ? 'bg-[#080808]' : `bg-gradient-to-br ${grad}`} flex items-center justify-center`}>
+          {realThumb ? (
+            <img
+              src={realThumb}
+              alt={`Frame at ${frame.timestamp}`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              onError={(e) => { e.target.style.display = 'none'; }}
+            />
+          ) : (
+            <>
+              {/* Scanlines on gradient fallback */}
+              <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(255,255,255,0.05) 2px, rgba(255,255,255,0.05) 4px)' }}></div>
+              <span className="font-mono font-black text-5xl text-white/10 select-none">{frame.timestamp}</span>
+            </>
+          )}
+          {/* Semi-transparent overlay for readability */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/20 pointer-events-none"></div>
+          {/* Frame label */}
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/10 z-10">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#FF3D6E] animate-pulse"></div>
+            <span className="text-white text-[10px] font-bold uppercase tracking-widest">Frame {i + 1}</span>
+          </div>
+          {/* Timestamp badge */}
+          <div className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-md text-[#00F5FF] font-mono font-bold text-xs px-2.5 py-1.5 rounded-lg border border-[#00F5FF]/30 shadow-[0_0_8px_rgba(0,245,255,0.3)] z-10">
+            ⏱ {frame.timestamp}
+          </div>
+        </div>
+        {/* Analysis body */}
+        <div className="p-4 bg-[#080808]/60 backdrop-blur-md">
+          <p className="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5">
+            <AlertCircle size={13} className="text-[#FF3D6E] shrink-0"/> {frame.issue}
+          </p>
+          <p className="text-sm text-gray-400 italic leading-relaxed">"{frame.tip}"</p>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8 pb-20 text-[#F0F0F0]">
       <div className="max-w-3xl">
@@ -36,8 +179,8 @@ export default function AIfyPost() {
       <div className="bg-white/5 p-4 md:p-6 rounded-[2rem] border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)] backdrop-blur-md flex flex-col md:flex-row gap-4 items-center">
          <div className="flex-1 w-full relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://instagram.com/p/..."
@@ -45,8 +188,8 @@ export default function AIfyPost() {
               onKeyDown={(e) => e.key === 'Enter' && handleAnalyze()}
             />
          </div>
-         <button 
-           onClick={handleAnalyze} 
+         <button
+           onClick={handleAnalyze}
            disabled={loading || !url}
            className="w-full md:w-auto bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#8B5CF6] px-8 py-4 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 shrink-0 shadow-[0_0_16px_rgba(139,92,246,0.2)]"
          >
@@ -67,20 +210,28 @@ export default function AIfyPost() {
 
       {result && !loading && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
            {/* LEFT: ORIGINAL DATA */}
            <div className="space-y-6">
-              <div className="bg-white/5 backdrop-blur-md p-6 rounded-[2rem] border border-white/10 h-full flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
-                 <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                    Original Scraped Content 
-                    <span className="bg-white/10 text-gray-300 px-2 py-0.5 rounded text-[10px] border border-white/10">{result.platform}</span>
-                 </h3>
-                 <p className="text-white text-lg whitespace-pre-wrap flex-1">{result.original_text}</p>
-                 
-                 <div className="flex gap-4 mt-4 text-gray-400 font-bold border-t border-white/10 pt-4">
-                    <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5"><Heart size={16} className="text-[#FF3D6E] fill-[#FF3D6E]/20"/> {result.original_likes?.toLocaleString() || 0}</span>
-                    <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5"><MessageCircle size={16} className="text-[#00F5FF] fill-[#00F5FF]/20"/> {result.original_comments?.toLocaleString() || 0}</span>
+              <div className="bg-white/5 backdrop-blur-md p-6 rounded-[2rem] border border-white/10 flex flex-col shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
+                 {/* Header row: title + metrics */}
+                 <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest flex items-center gap-2">
+                       Original Scraped Content
+                       <span className="bg-white/10 text-gray-300 px-2 py-0.5 rounded text-[10px] border border-white/10">{result.platform}</span>
+                    </h3>
+                    <div className="flex gap-2 text-gray-400 font-bold">
+                       <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
+                          <Heart size={13} className="text-[#FF3D6E] fill-[#FF3D6E]/20"/> {result.original_likes?.toLocaleString() || 0}
+                       </span>
+                       <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg text-sm border border-white/5">
+                          <MessageCircle size={13} className="text-[#00F5FF] fill-[#00F5FF]/20"/> {result.original_comments?.toLocaleString() || 0}
+                       </span>
+                    </div>
                  </div>
-                 
+
+                 <p className="text-white text-base whitespace-pre-wrap leading-relaxed">{result.original_text}</p>
+
                  {result.scrape_error && (
                     <div className="mt-4 bg-[#FF3D6E]/10 text-[#FF3D6E] p-3 rounded-xl border border-[#FF3D6E]/20 text-sm">
                        <p className="font-bold mb-1 flex items-center gap-1"><AlertCircle size={14}/> Live Apify Scrape Failed (Fired Clean Mock)</p>
@@ -88,13 +239,8 @@ export default function AIfyPost() {
                     </div>
                  )}
 
-                 <div className="mt-6 aspect-video bg-[#080808] border border-white/10 rounded-2xl relative overflow-hidden flex items-center justify-center shadow-inner">
-                    <Video className="text-white/20" size={64} />
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                         <Play className="text-[#FF3D6E] fill-[#FF3D6E] mb-2 shadow-[0_0_16px_rgba(255,61,110,0.5)]" size={32} />
-                         <p className="text-white/90 text-sm font-semibold">Simulated Video Asset</p>
-                    </div>
-                 </div>
+                 {/* Dynamic video asset */}
+                 {renderVideoAsset()}
               </div>
            </div>
 
@@ -115,33 +261,27 @@ export default function AIfyPost() {
                  <p className="text-white text-lg md:text-xl font-medium leading-relaxed whitespace-pre-wrap relative z-10">
                     {result.enhanced_text}
                  </p>
-                 <button className="mt-6 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 relative z-10 shadow-sm">
+                 <button
+                   onClick={() => navigator.clipboard.writeText(result.enhanced_text)}
+                   className="mt-6 bg-white/10 hover:bg-white/20 border border-white/20 backdrop-blur-md text-white px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 relative z-10 shadow-sm"
+                 >
                     <CheckCircle2 size={16} className="text-[#00F5FF]" /> Copy to Clipboard
                  </button>
               </div>
 
-              {/* FRAME ANALYSIS TIMELINE */}
+              {/* FRAME ANALYSIS */}
               <div className="bg-white/5 backdrop-blur-md p-6 md:p-8 rounded-[2rem] border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.2)]">
-                 <h3 className="text-xl font-bold text-white mb-8 flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
+                 <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
                     <Video className="text-[#FF3D6E]" /> Frame-by-Frame Retention Analysis
                  </h3>
-                 
-                 {/* CSS Timeline Layout */}
-                 <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-[1px] before:bg-gradient-to-b before:from-transparent before:via-white/20 before:to-transparent">
-                    {result.video_analysis && result.video_analysis.map((frame, i) => (
-                       <div key={i} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                          <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-[#080808] bg-[#00F5FF] text-[#080808] shadow-[0_0_12px_rgba(0,245,255,0.6)] shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                             <Clock size={16} />
-                          </div>
-                          <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm shadow-sm hover:bg-white/10 transition-all group-hover:-translate-y-1 group-hover:border-white/20">
-                             <div className="flex items-center justify-between mb-3">
-                                <span className="font-mono font-bold text-[#00F5FF] bg-[#00F5FF]/10 px-2 py-0.5 rounded text-xs border border-[#00F5FF]/20">{frame.timestamp}</span>
-                             </div>
-                             <p className="text-sm font-bold text-white mb-1.5 flex items-center gap-1.5"><AlertCircle size={14} className="text-[#FF3D6E]"/> {frame.issue}</p>
-                             <p className="text-sm text-gray-400 italic leading-relaxed">"{frame.tip}"</p>
-                          </div>
-                       </div>
-                    ))}
+                 {result.frame_thumbnails && result.frame_thumbnails.length > 0 ? (
+                   <p className="text-xs text-gray-500 mb-5 uppercase tracking-widest">Real frames extracted from source video</p>
+                 ) : (
+                   <p className="text-xs text-gray-500 mb-5 uppercase tracking-widest">AI-simulated retention markers</p>
+                 )}
+
+                 <div className="grid grid-cols-1 gap-4">
+                    {result.video_analysis && result.video_analysis.map((frame, i) => renderFrameCard(frame, i))}
                  </div>
               </div>
 
