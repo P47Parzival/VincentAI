@@ -26,6 +26,28 @@ const VIDEO_PHASES = [
     { text: 'Final quality pass and export...', progress: 86 },
 ];
 
+const AVATAR_OPTIONS = [
+    { id: 'avatar_1', label: 'Avatar 1', src: '/avatar_1.png' },
+    { id: 'avatar_2', label: 'Avatar 2', src: '/avatar_2.png' },
+    { id: 'avatar_3', label: 'Avatar 3', src: '/avatar_3.png' },
+    { id: 'avatar_4', label: 'Avatar 4', src: '/avatar_4.png' },
+    { id: 'avatar_5', label: 'Avatar 5', src: '/avatar_5.png' },
+];
+
+const RESEARCH_FALLBACK_MESSAGE = 'Live web research is currently unavailable, so this draft was generated from your business context and goal.';
+
+const sanitizeResearchData = (rawResearch) => {
+    if (!rawResearch || typeof rawResearch !== 'string') return rawResearch;
+    const normalized = rawResearch.trim();
+    if (!normalized) return '';
+
+    if (/unauthorized|missing or invalid api key|could not fetch live research/i.test(normalized)) {
+        return RESEARCH_FALLBACK_MESSAGE;
+    }
+
+    return rawResearch;
+};
+
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
@@ -52,6 +74,7 @@ export default function CreatePostAI() {
     const [instagramConnectionStatus, setInstagramConnectionStatus] = useState(null);
     const [isCheckingInstagramConnection, setIsCheckingInstagramConnection] = useState(false);
     const [isConnectingInstagram, setIsConnectingInstagram] = useState(false);
+    const [selectedAvatar, setSelectedAvatar] = useState('avatar_4');
 
     const fetchPublishOptions = async () => {
         try {
@@ -211,6 +234,7 @@ export default function CreatePostAI() {
     setVideoTimeline([]);
     setPublishResults({});
     setPublishError(null);
+    setSelectedAvatar('avatar_4');
     
     const backendUrl = `${API_BASE}/agents/stream-post`;
     const url = new URL(backendUrl);
@@ -238,7 +262,11 @@ export default function CreatePostAI() {
       
       setAgentStep(data.step);
       if (data.state_update) {
-        setAgentState(prev => ({ ...prev, ...data.state_update }));
+                const sanitizedUpdate = { ...data.state_update };
+                if (typeof sanitizedUpdate.research_data === 'string') {
+                    sanitizedUpdate.research_data = sanitizeResearchData(sanitizedUpdate.research_data);
+                }
+                setAgentState(prev => ({ ...prev, ...sanitizedUpdate }));
       }
     };
     
@@ -494,6 +522,41 @@ export default function CreatePostAI() {
                                     
                                     {/* Video section */}
                                     <div className="mt-4 pt-4 border-t border-white/10">
+                                        <div className="mb-4 rounded-2xl border border-white/10 bg-black/35 p-4">
+                                            <div className="flex items-center justify-between gap-2 mb-3">
+                                                <p className="text-xs uppercase tracking-widest text-gray-400 font-semibold">Select Avatar</p>
+                                                <p className="text-[11px] text-gray-500">Default: Avatar 4</p>
+                                            </div>
+                                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                                                {AVATAR_OPTIONS.map((avatar) => {
+                                                    const isActive = selectedAvatar === avatar.id;
+                                                    return (
+                                                        <button
+                                                            key={avatar.id}
+                                                            type="button"
+                                                            onClick={() => setSelectedAvatar(avatar.id)}
+                                                            className={`rounded-xl border p-2 transition-all text-left ${isActive ? 'border-[#00F5FF]/60 bg-[#00F5FF]/10 shadow-[0_0_10px_rgba(0,245,255,0.2)]' : 'border-white/10 bg-white/5 hover:border-white/25'}`}
+                                                        >
+                                                            <img
+                                                                src={avatar.src}
+                                                                alt={avatar.label}
+                                                                onError={(e) => {
+                                                                    if (avatar.id === 'avatar_1' && e.currentTarget.src.indexOf('avatar_1.png') !== -1) {
+                                                                        e.currentTarget.src = '/avatar%20_1.png';
+                                                                        return;
+                                                                    }
+                                                                    e.currentTarget.src = '/avatar_4.png';
+                                                                }}
+                                                                className="w-full h-24 object-contain rounded-md border border-white/10 bg-[#0f1119] p-1"
+                                                            />
+                                                            <p className={`text-[11px] mt-2 font-semibold ${isActive ? 'text-[#00F5FF]' : 'text-gray-300'}`}>{avatar.label}</p>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 mt-3">Current demo video is static and uses Avatar 4 output.</p>
+                                        </div>
+
                                         {(!isGeneratingVideo && !isVideoFinished) && (
                                             <button 
                                                 onClick={generateVideo}
@@ -534,6 +597,9 @@ export default function CreatePostAI() {
                                                 <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full text-xs font-medium text-white/90 border border-white/10">
                                                     <div className="w-2 h-2 rounded-full bg-[#00F5FF] animate-pulse shadow-[0_0_8px_rgba(0,245,255,0.8)]"></div>
                                                     Generated Output
+                                                </div>
+                                                <div className="absolute top-4 right-4 z-10 bg-black/50 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-semibold text-gray-200 border border-white/10">
+                                                    Selected: {selectedAvatar.replace('_', ' ').toUpperCase()}
                                                 </div>
                                                 <video 
                                                     src="/demo_video_TTSV.mp4" 
@@ -687,6 +753,7 @@ export default function CreatePostAI() {
                             setAudioUrl(null);
                             setPublishResults({});
                             setPublishError(null);
+                            setSelectedAvatar('avatar_4');
                         }}
                         className="px-8 py-3 bg-white/10 backdrop-blur-md border border-white/20 text-white font-bold rounded-2xl hover:bg-white/20 transition-colors shadow-[0_0_16px_rgba(255,255,255,0.1)]"
                     >
