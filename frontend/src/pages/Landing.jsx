@@ -7,6 +7,7 @@ import headerImg from '../assets/header.png';
 import mainVid from '../assets/main_vid.mp4';
 import searchVid from '../assets/search_vid.mp4';
 import viralVid from '../assets/viral_vid.mp4';
+import oneClickVid from '../assets/one_click.mp4';
 
 /* ─────────────────────────────────────────────────────────────────────────────
    GLOBAL STYLES (injected via <style> in JSX)
@@ -461,7 +462,7 @@ export default function Landing() {
       // Lerp (smooth interpolation)
       // The 0.08 factor determines how loose/smooth the physical spring is
       currentScroll += (targetScroll - currentScroll) * 0.08;
-      
+
       if (headerImgRef.current) {
         const vh = window.innerHeight;
         const ROTATE_END = vh;
@@ -814,6 +815,69 @@ export default function Landing() {
       ══════════════════════════════════════════════════════════════════════ */}
       <section style={{ position: 'relative', padding: '160px 24px', background: '#080808', overflow: 'hidden' }}>
 
+        {/* Neon connector between Macbook sections */}
+        <svg
+          viewBox="0 0 1200 900"
+          preserveAspectRatio="none"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        >
+          <defs>
+            <linearGradient id="neonWire" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stopColor="#FF3D6E" stopOpacity="0.2" />
+              <stop offset="45%" stopColor="#FF3D6E" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#00F5FF" stopOpacity="0.9" />
+            </linearGradient>
+            <filter id="wireGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="8" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          <path
+            d="M 780 130 C 940 160 980 320 760 350 C 520 380 460 470 340 480"
+            stroke="url(#neonWire)"
+            strokeWidth="8"
+            fill="none"
+            strokeLinecap="round"
+            filter="url(#wireGlow)"
+            opacity="0.65"
+          />
+          <path
+            d="M 780 130 C 940 160 980 320 760 350 C 520 380 460 470 340 480"
+            stroke="#FFFFFF"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.6"
+          />
+          <path
+            d="M 340 540 C 200 600 420 700 720 710 C 930 720 1000 770 920 800"
+            stroke="url(#neonWire)"
+            strokeWidth="8"
+            fill="none"
+            strokeLinecap="round"
+            filter="url(#wireGlow)"
+            opacity="0.6"
+          />
+          <path
+            d="M 340 540 C 200 600 420 700 720 710 C 930 720 1000 770 920 800"
+            stroke="#FFFFFF"
+            strokeWidth="2"
+            fill="none"
+            strokeLinecap="round"
+            opacity="0.55"
+          />
+        </svg>
+
         {/* ── Section-wide Breathing Glow Orbs ── */}
         <div style={{
           position: 'absolute', top: '20%', left: '5%',
@@ -907,6 +971,51 @@ export default function Landing() {
                 {/* The Video Display */}
                 <video
                   src={viralVid}
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                  style={{ position: 'absolute', top: '24px', left: 0, width: '100%', height: 'calc(100% - 24px)', objectFit: 'cover', transform: 'scale(1.15)' }}
+                />
+              </div>
+              {/* Macbook Bottom Lip */}
+              <div style={{ width: '115%', height: '16px', background: 'linear-gradient(to bottom, #cfd0d4, #8b8c90)', marginLeft: '-7.5%', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', boxShadow: 'inset 0 2px 4px rgba(255,255,255,0.4), 0 10px 20px rgba(0,0,0,0.6)', position: 'relative' }}>
+                <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '15%', height: '4px', background: '#b0b1b5', borderRadius: '0 0 4px 4px' }} />
+              </div>
+            </div>
+
+          </div>
+
+          {/* Block 3: Engagement Loop */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '60px', flexWrap: 'wrap' }}>
+
+            {/* Left: Sassy Typography */}
+            <div style={{ flex: '1 1 400px' }}>
+              <h2 className="font-display" style={{ fontSize: 'clamp(48px, 6vw, 80px)', lineHeight: 0.95, letterSpacing: '-2px', color: '#fff', marginBottom: '24px' }}>
+                One click, <br />
+                <span style={{ color: '#FF3D6E', textShadow: '0 0 30px rgba(255,61,110,0.4)' }}>go live.</span>
+              </h2>
+              <p style={{ fontSize: '18px', color: '#888', lineHeight: 1.6, maxWidth: '400px' }}>
+                Auto-generate the post and publish it directly to your connected social platforms in one tap.
+              </p>
+            </div>
+
+            {/* Right: Macbook Frame */}
+            <div style={{ flex: '1 1 500px', position: 'relative' }}>
+              {/* Core Vibrant Backglow */}
+              <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '150%', height: '150%', background: 'radial-gradient(circle, rgba(255,61,110,0.35) 0%, rgba(255,61,110,0.08) 40%, transparent 70%)', filter: 'blur(50px)', pointerEvents: 'none', animation: 'macbookGlow 4s ease-in-out infinite 1s' }} />
+
+              {/* The Macbook Structure */}
+              <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#1c1c1e', borderRadius: '16px 16px 4px 4px', border: '2px solid #5a3a4c', boxShadow: '0 25px 50px rgba(0,0,0,0.8), 0 0 60px rgba(255,61,110,0.35), inset 0 0 20px rgba(255,61,110,0.1)', overflow: 'hidden' }}>
+                {/* Top Notch / Nav Bar */}
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '24px', background: '#2c2c2e', borderBottom: '1px solid #3a3a3c', display: 'flex', alignItems: 'center', padding: '0 12px', gap: '6px', zIndex: 10 }}>
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ff5f56' }} />
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ffbd2e' }} />
+                  <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#27c93f' }} />
+                </div>
+                {/* The Video Display */}
+                <video
+                  src={oneClickVid}
                   autoPlay
                   muted
                   loop
