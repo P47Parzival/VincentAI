@@ -44,6 +44,7 @@ async def process_live_store_item(item_id: str, whatsapp_to: str | None) -> None
         "voice_to_viral": {},
         "trend_tracker": {},
         "executive_summary": "",
+        "image_urls": [],
     }
 
     try:
@@ -60,12 +61,14 @@ async def process_live_store_item(item_id: str, whatsapp_to: str | None) -> None
         if whatsapp_to and final_item:
             summary = (final_item.get("executive_summary", "") if isinstance(final_item, dict) else "").strip()
             link_analysis = final_item.get("link_analysis") if isinstance(final_item, dict) else None
+            image_urls = final_item.get("image_urls") if isinstance(final_item, dict) else []
             if summary or link_analysis:
                 await send_whatsapp_summary(
                     whatsapp_to,
                     summary,
                     build_dashboard_link(item_id),
                     link_analysis=link_analysis,
+                    image_urls=image_urls,
                 )
     except Exception as error:
         error_item = await live_store.update_item(item_id, {"status": "error", "error": str(error), "stage": "error"})

@@ -25,6 +25,7 @@ class ProducerState(TypedDict):
     voice_to_viral: dict[str, Any]
     trend_tracker: dict[str, Any]
     executive_summary: str
+    image_urls: list[str]
 
 
 def _get_llm() -> ChatGroq:
@@ -606,6 +607,53 @@ You are a Trend Tracker for {niche} creators. Return JSON with:
     return {"trend_tracker": parsed}
 
 
+async def _image_suggestion_node(state: ProducerState) -> dict[str, Any]:
+    payload = state.get("input_payload", {})
+    link = payload.get("link")
+    if link:
+        return {"image_urls": []}
+    
+    prompt_text = payload.get("text", "")
+    if not prompt_text or not _groq_available():
+        return {"image_urls": []}
+        
+    llm = _get_llm()
+    prompt = f"""
+You are an Image Researcher. The user asked this prompt:
+"{prompt_text}"
+
+Return JSON with an array of 2-3 specific, concise search queries for Unsplash that represent the vibe of the prompt.
+{{
+  "search_queries": ["business meeting", "creative brainstorming"]
+}}
+"""
+    response = await llm.ainvoke([HumanMessage(content=prompt)])
+    parsed = _parse_json(response.content, {"search_queries": []})
+    queries = parsed.get("search_queries", [])
+    
+    unsplash_key = os.getenv("UNSPLASH_ACCESS_KEY")
+    if not queries or not unsplash_key:
+        return {"image_urls": []}
+        
+    image_urls = []
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            for query in queries[:3]:
+                res = await client.get(
+                    "https://api.unsplash.com/search/photos",
+                    params={"query": query, "client_id": unsplash_key, "per_page": 1, "orientation": "landscape"}
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    results = data.get("results", [])
+                    if results:
+                        image_urls.append(results[0]["urls"]["regular"])
+    except Exception as e:
+        print(f"[UNSPLASH] Error fetching images: {e}")
+        
+    return {"image_urls": image_urls}
+
+
 async def _summary_node(state: ProducerState) -> dict[str, Any]:
     if not _groq_available():
         return {"executive_summary": "Virality score: 54/100. Focus on a sharper opening hook, add a clear payoff, and tighten pacing for the first 10 seconds."}
@@ -652,6 +700,7 @@ workflow.add_node("link_analysis_node", _link_analysis_node)
 workflow.add_node("frame_analysis_node", _frame_analysis_node)
 workflow.add_node("voice_to_viral_node", _voice_to_viral_node)
 workflow.add_node("trend_tracker_node", _trend_tracker_node)
+workflow.add_node("image_suggestion_node", _image_suggestion_node)
 workflow.add_node("summary", _summary_node)
 
 workflow.add_edge(START, "scrape")
@@ -660,7 +709,8 @@ workflow.add_edge("insights", "link_analysis_node")
 workflow.add_edge("link_analysis_node", "frame_analysis_node")
 workflow.add_edge("frame_analysis_node", "voice_to_viral_node")
 workflow.add_edge("voice_to_viral_node", "trend_tracker_node")
-workflow.add_edge("trend_tracker_node", "summary")
+workflow.add_edge("trend_tracker_node", "image_suggestion_node")
+workflow.add_edge("image_suggestion_node", "summary")
 workflow.add_edge("summary", END)
 
 producer_app = workflow.compile()
@@ -711,6 +761,7 @@ def build_initial_item(payload: dict[str, Any]) -> dict[str, Any]:
         "voice_to_viral": {},
         "trend_tracker": {},
         "executive_summary": "",
+        "image_urls": [],
         "created_at": datetime.utcnow().isoformat() + "Z",
     }
 
@@ -720,6 +771,7 @@ async def send_whatsapp_summary(
     summary: str,
     dashboard_link: str,
     link_analysis: dict[str, Any] | None = None,
+    image_urls: list[str] | None = None,
 ) -> bool:
     account_sid = os.getenv("TWILIO_ACCOUNT_SID")
     auth_token = os.getenv("TWILIO_AUTH_TOKEN")
@@ -736,22 +788,43 @@ async def send_whatsapp_summary(
     parts.append(f"Full dashboard: {dashboard_link}")
     message = "\n\n".join(parts).strip()
 
+    primary_data = {
+        "From": from_number,
+        "To": to_number,
+        "Body": message[:1500],
+    }
+    valid_urls = (image_urls or [])[:3]
+    if valid_urls:
+        primary_data["MediaUrl"] = valid_urls[0]
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             res = await client.post(
                 f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json",
                 auth=(account_sid, auth_token),
-                data={
-                    "From": from_number,
-                    "To": to_number,
-                    "Body": message[:1500],
-                },
+                data=primary_data,
             )
-        if res.status_code not in (200, 201):
-            print(f"[TWILIO] Send failed: {res.status_code} {res.text[:400]}")
-        else:
-            print(f"[TWILIO] Message sent to {to_number}.")
-        return res.status_code in (200, 201)
+            if res.status_code not in (200, 201):
+                print(f"[TWILIO] Send failed: {res.status_code} {res.text[:400]}")
+                return False
+            else:
+                print(f"[TWILIO] Primary message sent to {to_number}.")
+                
+            for extra_url in valid_urls[1:]:
+                try:
+                    await client.post(
+                        f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json",
+                        auth=(account_sid, auth_token),
+                        data={
+                            "From": from_number,
+                            "To": to_number,
+                            "MediaUrl": extra_url,
+                        },
+                    )
+                except Exception as e:
+                    print(f"[TWILIO] Extra image send failed: {e}")
+                    
+            return True
     except Exception as error:
         print(f"[TWILIO] Send exception: {str(error)}")
         return False
