@@ -1,5 +1,6 @@
 import json
 import os
+import logging
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +15,7 @@ from app.services.composio_executor_service import (
 
 
 router = APIRouter(prefix="/composio")
+logger = logging.getLogger(__name__)
 
 
 class ComposioPublishExecRequest(BaseModel):
@@ -69,6 +71,7 @@ async def composio_publish_exec(
     except ComposioExecutionError as error:
         return JSONResponse(status_code=400, content={"ok": False, "message": str(error)})
     except Exception as error:
+        logger.exception("Unexpected error in /api/composio/publish-exec")
         return JSONResponse(status_code=500, content={"ok": False, "message": "Composio publish executor failed.", "details": str(error)})
 
 
@@ -80,6 +83,7 @@ async def composio_connection_status(toolkit: str) -> JSONResponse:
     except ComposioExecutionError as error:
         return JSONResponse(status_code=400, content={"ok": False, "message": str(error)})
     except Exception as error:
+        logger.exception("Unexpected error in /api/composio/connection-status")
         return JSONResponse(status_code=500, content={"ok": False, "message": "Failed to get Composio connection status.", "details": str(error)})
 
 
@@ -91,4 +95,5 @@ async def composio_connect_link(toolkit: str, callbackUrl: str | None = None) ->
     except ComposioExecutionError as error:
         return JSONResponse(status_code=400, content={"ok": False, "message": str(error)})
     except Exception as error:
+        logger.exception("Unexpected error in /api/composio/connect-link")
         return JSONResponse(status_code=500, content={"ok": False, "message": "Failed to create Composio connect link.", "details": str(error)})

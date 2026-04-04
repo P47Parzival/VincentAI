@@ -61,7 +61,8 @@ For social publishing from Create Post with AI:
 	- X: `X_ACCESS_TOKEN`, optional `X_MEDIA_ID`
 	- Composio bridge: `COMPOSIO_PUBLISH_WEBHOOK_URL`, `COMPOSIO_API_KEY`
 	- Composio inbound verification (optional): `COMPOSIO_WEBHOOK_SECRET`
-	- Optional Composio execution controls: `COMPOSIO_USER_ID`, `COMPOSIO_<PLATFORM>_TOOL_SLUG`, `COMPOSIO_<PLATFORM>_ACCOUNT`
+	- Optional Composio execution controls: `COMPOSIO_USER_ID`, `COMPOSIO_<PLATFORM>_TOOL_SLUG`, `COMPOSIO_<PLATFORM>_ACCOUNT`, `COMPOSIO_EXECUTOR_TIMEOUT_SECONDS`
+	- Instagram publish wait tuning: `COMPOSIO_INSTAGRAM_MAX_WAIT_SECONDS`, `COMPOSIO_INSTAGRAM_POLL_INTERVAL_SECONDS`
 
 ## 2. Run
 
