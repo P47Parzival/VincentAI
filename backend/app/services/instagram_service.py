@@ -21,7 +21,14 @@ async def _run_apify(actor_path: str, payload: dict, token: str) -> list:
         )
     print(f"[APIFY {actor_path}] status={res.status_code}")
     if res.status_code not in (200, 201):
-        raise ValueError(f"Apify HTTP {res.status_code}: {res.text[:400]}")
+        body = (res.text or "")[:800]
+        if res.status_code == 403 and "platform-feature-disabled" in body and "Monthly usage hard limit exceeded" in body:
+            raise ValueError(
+                "Apify returned 403 (Monthly usage hard limit exceeded) for the currently loaded token. "
+                "If you recently changed APIFY_API_TOKEN, restart backend to reload .env. "
+                "Also check Apify Console -> Billing -> Usage limits (hard limit)."
+            )
+        raise ValueError(f"Apify HTTP {res.status_code}: {body[:400]}")
     data = res.json()
     if not isinstance(data, list):
         raise ValueError(f"Unexpected Apify response: {str(data)[:300]}")
