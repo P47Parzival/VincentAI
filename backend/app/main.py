@@ -1,5 +1,8 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pathlib import Path
 from app.api.routes import router as api_router
 from app.api.linkedin_auth import router as linkedin_oauth_router
 from app.core.config import get_backend_port, get_frontend_origin
@@ -20,6 +23,17 @@ app.add_middleware(
 
 app.include_router(api_router)
 app.include_router(linkedin_oauth_router)
+
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+DEMO_VIDEO_PATH = ROOT_DIR / "frontend" / "public" / "demo_video_TTSV.mp4"
+
+
+@app.get("/demo_video_TTSV.mp4", include_in_schema=False)
+async def serve_demo_video() -> FileResponse:
+    if not DEMO_VIDEO_PATH.exists():
+        raise HTTPException(status_code=404, detail="Demo video not found.")
+    return FileResponse(str(DEMO_VIDEO_PATH), media_type="video/mp4")
 
 
 @app.websocket("/ws/live-store")

@@ -25,6 +25,16 @@ const sentimentIcon = (overall) => {
   return <Minus size={18} className="text-amber-300" />;
 };
 
+const isCorsRestrictedImageUrl = (url) => {
+  try {
+    if (!url) return false;
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes('cdninstagram.com') || host.includes('fbcdn.net');
+  } catch {
+    return false;
+  }
+};
+
 export default function AnalyticsDetail() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -75,7 +85,9 @@ export default function AnalyticsDetail() {
 
   const quickItem = location.state?.item;
   const thumbnailCandidates = detail
-    ? [detail.thumbnail, ...(Array.isArray(detail.thumbnailFallbacks) ? detail.thumbnailFallbacks : [])].filter(Boolean)
+    ? [detail.thumbnail, ...(Array.isArray(detail.thumbnailFallbacks) ? detail.thumbnailFallbacks : [])]
+        .filter(Boolean)
+        .filter((url) => !isCorsRestrictedImageUrl(url))
     : [];
   const activeThumbnail = thumbnailCandidates[thumbnailIndex] || null;
 

@@ -1,8 +1,11 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_ENV_PATH = _BACKEND_ROOT / ".env"
+load_dotenv(dotenv_path=_ENV_PATH, override=False)
 
 
 def get_frontend_origin() -> str:

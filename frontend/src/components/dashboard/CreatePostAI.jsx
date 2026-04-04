@@ -1,6 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Play, Video, Hash, Copy } from 'lucide-react';
+import { PenTool, Target, Zap, Loader2, CheckCircle, ArrowRight, Volume2, Video, Hash, Copy, Camera, Building2, Bird, ThumbsUp, Send, Link2, RefreshCw } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+
+const API_BASE = 'http://localhost:4000/api';
+const SOCIAL_PLATFORMS = [
+    { id: 'instagram', label: 'Instagram', icon: Camera, accent: 'text-pink-300 border-pink-400/30 bg-pink-500/10' },
+    { id: 'linkedin', label: 'LinkedIn', icon: Building2, accent: 'text-sky-300 border-sky-400/30 bg-sky-500/10' },
+    { id: 'twitter', label: 'X / Twitter', icon: Bird, accent: 'text-gray-200 border-gray-300/30 bg-gray-500/10' },
+    { id: 'facebook', label: 'Facebook', icon: ThumbsUp, accent: 'text-indigo-300 border-indigo-400/30 bg-indigo-500/10' },
+];
 
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
@@ -19,12 +27,152 @@ export default function CreatePostAI() {
   const logsEndRef = useRef({});
   const [editableDraft, setEditableDraft] = useState('');
   const [copied, setCopied] = useState(false);
+    const [publishOptions, setPublishOptions] = useState(null);
+    const [publishMethod, setPublishMethod] = useState('raw_api');
+    const [publishingPlatform, setPublishingPlatform] = useState(null);
+    const [publishResults, setPublishResults] = useState({});
+    const [publishError, setPublishError] = useState(null);
+    const [instagramConnectionStatus, setInstagramConnectionStatus] = useState(null);
+    const [isCheckingInstagramConnection, setIsCheckingInstagramConnection] = useState(false);
+    const [isConnectingInstagram, setIsConnectingInstagram] = useState(false);
+
+    const fetchPublishOptions = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/publish/options`);
+            if (!res.ok) return;
+            const data = await res.json();
+            setPublishOptions(data);
+            if (data?.recommended_method) {
+                setPublishMethod(data.recommended_method);
+            }
+        } catch {
+            // Optional feature; keep UI functional even if options endpoint fails.
+        }
+    };
+
+    const fetchInstagramConnectionStatus = async () => {
+        setIsCheckingInstagramConnection(true);
+        try {
+            const res = await fetch(`${API_BASE}/composio/connection-status?toolkit=instagram`);
+            const data = await res.json();
+            if (res.ok && data?.ok) {
+                setInstagramConnectionStatus(Boolean(data?.toolkit_status?.has_active_connection));
+            } else {
+                setInstagramConnectionStatus(false);
+            }
+        } catch {
+            setInstagramConnectionStatus(false);
+        } finally {
+            setIsCheckingInstagramConnection(false);
+        }
+    };
+
+    const connectInstagramWithComposio = async () => {
+        setPublishError(null);
+        setIsConnectingInstagram(true);
+        try {
+            const callback = encodeURIComponent(window.location.href);
+            const res = await fetch(`${API_BASE}/composio/connect-link?toolkit=instagram&callbackUrl=${callback}`, {
+                method: 'POST',
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data?.redirect_url) {
+                throw new Error(data?.message || 'Failed to create Instagram connect link.');
+            }
+
+            const popup = window.open(data.redirect_url, '_blank', 'noopener,noreferrer');
+            if (!popup) {
+                window.location.href = data.redirect_url;
+            }
+
+            // Give user time to complete auth, then re-check status.
+            setTimeout(() => {
+                fetchInstagramConnectionStatus();
+            }, 2500);
+        } catch (err) {
+            setPublishError(err?.message || 'Failed to start Instagram connection flow.');
+        } finally {
+            setIsConnectingInstagram(false);
+        }
+    };
 
   useEffect(() => {
     if (agentState.draft) {
       setEditableDraft(agentState.draft);
     }
   }, [agentState.draft]);
+
+    useEffect(() => {
+        fetchPublishOptions();
+    }, []);
+
+    useEffect(() => {
+        if (publishMethod === 'composio' && isVideoFinished) {
+            fetchInstagramConnectionStatus();
+        }
+    }, [publishMethod, isVideoFinished]);
+
+    const getVideoPublishUrl = () => {
+        const publicBase = (import.meta.env.VITE_PUBLIC_ASSET_BASE_URL || '').trim();
+        if (publicBase) {
+            const normalized = publicBase.endsWith('/') ? publicBase : `${publicBase}/`;
+            return new URL('demo_video_TTSV.mp4', normalized).toString();
+        }
+        return new URL('/demo_video_TTSV.mp4', window.location.origin).toString();
+    };
+
+    const publishToPlatform = async (platform) => {
+        if (!editableDraft?.trim()) {
+            setPublishError('Caption is empty. Generate or edit your draft first.');
+            return;
+        }
+
+        if (publishMethod === 'composio' && platform === 'instagram' && instagramConnectionStatus !== true) {
+            setPublishError('Connect Instagram in Composio before publishing.');
+            return;
+        }
+
+        const candidateVideoUrl = isVideoFinished ? getVideoPublishUrl() : null;
+        setPublishError(null);
+        setPublishingPlatform(platform);
+
+        try {
+            const res = await fetch(`${API_BASE}/publish/social`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    platform,
+                    caption: editableDraft,
+                    videoUrl: candidateVideoUrl,
+                    method: publishMethod,
+                }),
+            });
+
+            const payload = await res.json();
+            const normalized = {
+                ok: Boolean(payload?.ok),
+                message: payload?.message || (payload?.ok ? 'Published successfully.' : 'Publish failed.'),
+                notes: Array.isArray(payload?.notes) ? payload.notes : [],
+                post_url: payload?.post_url || null,
+                post_id: payload?.post_id || null,
+            };
+
+            setPublishResults((prev) => ({ ...prev, [platform]: normalized }));
+            if (!res.ok || !normalized.ok) {
+                setPublishError(normalized.message);
+            }
+        } catch (err) {
+            const message = err?.message || 'Failed to publish content.';
+            setPublishResults((prev) => ({
+                ...prev,
+                [platform]: { ok: false, message, notes: [], post_url: null, post_id: null },
+            }));
+            setPublishError(message);
+        } finally {
+            setPublishingPlatform(null);
+        }
+    };
 
   const handleCopy = () => {
     if (!editableDraft) return;
@@ -42,8 +190,10 @@ export default function CreatePostAI() {
     setIsFinished(false);
     setIsVideoFinished(false);
     setVideoLogs([]);
+    setPublishResults({});
+    setPublishError(null);
     
-    const backendUrl = "http://localhost:4000/api/agents/stream-post";
+    const backendUrl = `${API_BASE}/agents/stream-post`;
     const url = new URL(backendUrl);
     url.searchParams.append('companyDescription', description);
     url.searchParams.append('socialGoal', goal);
@@ -96,7 +246,7 @@ export default function CreatePostAI() {
     if (!agentState.draft) return;
     try {
       setIsGeneratingAudio(true);
-      const res = await fetch("http://localhost:4000/api/agents/tts", {
+    const res = await fetch(`${API_BASE}/agents/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: agentState.draft })
@@ -369,6 +519,125 @@ export default function CreatePostAI() {
                                             </div>
                                         )}
                                     </div>
+
+                                    {isVideoFinished && (
+                                        <div className="mt-5 pt-5 border-t border-white/10">
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                                                <div>
+                                                    <h4 className="text-sm font-bold tracking-widest uppercase text-gray-300 flex items-center gap-2">
+                                                        <Send size={14} className="text-[#00F5FF]" /> One-Click Distribution
+                                                    </h4>
+                                                    <p className="text-xs text-gray-400 mt-1">Publish your generated video + caption directly to social platforms.</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <label className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Method</label>
+                                                    <select
+                                                        value={publishMethod}
+                                                        onChange={(e) => setPublishMethod(e.target.value)}
+                                                        className="bg-black/40 border border-white/15 text-white text-xs rounded-lg px-3 py-2 outline-none"
+                                                    >
+                                                        <option value="raw_api">Raw APIs</option>
+                                                        <option value="composio">Composio</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            {publishOptions?.notes?.length > 0 && (
+                                                <div className="mb-4 text-xs text-gray-400 bg-black/25 border border-white/10 rounded-xl p-3 space-y-1">
+                                                    {publishOptions.notes.map((note, idx) => (
+                                                        <p key={idx}>- {note}</p>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {publishMethod === 'composio' && (
+                                                <div className="mb-4 rounded-xl border border-white/10 bg-black/25 p-3">
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <p className="text-xs uppercase tracking-wider text-gray-400 font-semibold">Instagram Connection</p>
+                                                            {isCheckingInstagramConnection ? (
+                                                                <p className="text-xs text-gray-300 mt-1 flex items-center gap-1"><Loader2 size={12} className="animate-spin" /> Checking Composio account status...</p>
+                                                            ) : instagramConnectionStatus === true ? (
+                                                                <p className="text-xs text-emerald-300 mt-1">Connected. You can publish to Instagram via Composio.</p>
+                                                            ) : (
+                                                                <p className="text-xs text-amber-300 mt-1">Not connected. Authorize Instagram account once to enable publishing.</p>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 shrink-0">
+                                                            {instagramConnectionStatus !== true && (
+                                                                <button
+                                                                    onClick={connectInstagramWithComposio}
+                                                                    disabled={isConnectingInstagram}
+                                                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-[#00F5FF]/35 bg-[#00F5FF]/10 text-[#00F5FF] hover:bg-[#00F5FF]/20 disabled:opacity-60"
+                                                                >
+                                                                    {isConnectingInstagram ? <Loader2 size={13} className="animate-spin" /> : <Link2 size={13} />}
+                                                                    {isConnectingInstagram ? 'Opening...' : 'Connect Instagram'}
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                onClick={fetchInstagramConnectionStatus}
+                                                                disabled={isCheckingInstagramConnection}
+                                                                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg border border-white/20 bg-white/5 text-gray-200 hover:bg-white/10 disabled:opacity-60"
+                                                            >
+                                                                <RefreshCw size={13} className={isCheckingInstagramConnection ? 'animate-spin' : ''} />
+                                                                Refresh
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {SOCIAL_PLATFORMS.map((platform) => {
+                                                    const Icon = platform.icon;
+                                                    const result = publishResults[platform.id];
+                                                    const methodInfo = publishOptions?.platforms?.[platform.id]?.[publishMethod];
+                                                    const composioInstagramBlocked = publishMethod === 'composio' && platform.id === 'instagram' && instagramConnectionStatus !== true;
+                                                    const isReady = (methodInfo ? methodInfo.ready : true) && !composioInstagramBlocked;
+                                                    const isLoading = publishingPlatform === platform.id;
+
+                                                    return (
+                                                        <div key={platform.id} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                                                            <button
+                                                                onClick={() => publishToPlatform(platform.id)}
+                                                                disabled={isLoading || publishingPlatform !== null || !isReady}
+                                                                className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-lg border font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${platform.accent}`}
+                                                            >
+                                                                {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Icon size={16} />}
+                                                                {isLoading ? `Publishing...` : `Publish to ${platform.label}`}
+                                                            </button>
+
+                                                            {!isReady && methodInfo?.missing?.length > 0 && (
+                                                                <p className="text-[11px] text-amber-300 mt-2">Missing: {methodInfo.missing.join(', ')}</p>
+                                                            )}
+
+                                                            {!isReady && composioInstagramBlocked && (
+                                                                <p className="text-[11px] text-amber-300 mt-2">Missing: Connect Instagram account in Composio</p>
+                                                            )}
+
+                                                            {result && (
+                                                                <div className={`mt-2 text-xs rounded-lg border px-2 py-2 ${result.ok ? 'text-emerald-300 border-emerald-400/30 bg-emerald-500/10' : 'text-rose-300 border-rose-400/30 bg-rose-500/10'}`}>
+                                                                    <p className="font-semibold">{result.ok ? 'Success' : 'Failed'}: {result.message}</p>
+                                                                    {result.notes?.map((note, idx) => (
+                                                                        <p key={idx} className="mt-1">- {note}</p>
+                                                                    ))}
+                                                                    {result.post_url && (
+                                                                        <a href={result.post_url} target="_blank" rel="noreferrer" className="inline-block mt-1 underline font-semibold">
+                                                                            Open published post
+                                                                        </a>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            {publishError && (
+                                                <p className="text-xs text-rose-300 mt-3">{publishError}</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -391,6 +660,8 @@ export default function CreatePostAI() {
                             setDescription('');
                             setGoal('');
                             setAudioUrl(null);
+                            setPublishResults({});
+                            setPublishError(null);
                         }}
                         className="px-8 py-3 bg-white/10 backdrop-blur-md border border-white/20 text-white font-bold rounded-2xl hover:bg-white/20 transition-colors shadow-[0_0_16px_rgba(255,255,255,0.1)]"
                     >

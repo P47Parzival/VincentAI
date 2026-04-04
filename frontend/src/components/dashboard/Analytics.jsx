@@ -28,6 +28,16 @@ const formatNumber = (value) => {
   return numberFormatter.format(value);
 };
 
+const isCorsRestrictedImageUrl = (url) => {
+  try {
+    if (!url) return false;
+    const host = new URL(url).hostname.toLowerCase();
+    return host.includes('cdninstagram.com') || host.includes('fbcdn.net');
+  } catch {
+    return false;
+  }
+};
+
 export default function Analytics() {
   const navigate = useNavigate();
   const [activePlatform, setActivePlatform] = useState('instagram');
@@ -517,6 +527,11 @@ export default function Analytics() {
               <div className="space-y-3">
                 {(activeData?.items || []).length > 0 ? (
                   (activeData?.items || []).map((item) => (
+                    (() => {
+                      const previewUrl = item.thumbnail || item.thumbnail_url || item.media_url;
+                      const canRenderPreview = Boolean(previewUrl) && !isCorsRestrictedImageUrl(previewUrl);
+
+                      return (
                     <article
                       key={item.id || item.videoId}
                       className="p-4 rounded-2xl bg-white/5 border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-between gap-3 hover:bg-white/10 transition-colors backdrop-blur-md"
@@ -544,9 +559,9 @@ export default function Analytics() {
                         </p>
                       </div>
                       <div className="shrink-0">
-                        {item.thumbnail || item.thumbnail_url || item.media_url ? (
+                        {canRenderPreview ? (
                           <img
-                            src={item.thumbnail || item.thumbnail_url || item.media_url}
+                            src={previewUrl}
                             alt="media preview"
                             className="w-16 h-16 rounded-xl object-cover border border-white/10"
                           />
@@ -557,6 +572,8 @@ export default function Analytics() {
                         )}
                       </div>
                     </article>
+                      );
+                    })()
                   ))
                 ) : (
                   <div className="p-8 rounded-2xl border border-white/10 bg-white/5 text-center text-gray-500 backdrop-blur-md">
