@@ -88,6 +88,20 @@ def _pick_instagram_publish_slug(search_json: dict[str, Any]) -> str | None:
     return None
 
 
+def _pick_instagram_create_slug(search_json: dict[str, Any]) -> str | None:
+    slugs = _all_tool_slugs(search_json)
+    if not slugs:
+        return None
+
+    # Prefer media container creation endpoint.
+    for slug in slugs:
+        upper = slug.upper()
+        if "IG_USER_MEDIA" in upper and "PUBLISH" not in upper:
+            return slug
+
+    return None
+
+
 def _extract_toolkit_user_id(search_json: dict[str, Any], toolkit: str) -> str | None:
     statuses = search_json.get("toolkit_connection_statuses") if isinstance(search_json, dict) else None
     if not isinstance(statuses, list):
@@ -218,6 +232,32 @@ def _first_non_empty(*values: Any) -> str | None:
     return None
 
 
+def _resolve_timeout_seconds() -> float:
+    raw = (os.getenv("COMPOSIO_EXECUTOR_TIMEOUT_SECONDS") or "180").strip()
+    try:
+        return max(30.0, float(raw))
+    except ValueError:
+        return 180.0
+
+
+async def _post_json(
+    client: httpx.AsyncClient,
+    *,
+    url: str,
+    headers: dict[str, str],
+    payload: dict[str, Any],
+    action: str,
+) -> httpx.Response:
+    try:
+        return await client.post(url, headers=headers, json=payload)
+    except httpx.TimeoutException as exc:
+        raise ComposioExecutionError(
+            f"Composio {action} timed out. Retry in a moment, or increase COMPOSIO_EXECUTOR_TIMEOUT_SECONDS."
+        ) from exc
+    except httpx.HTTPError as exc:
+        raise ComposioExecutionError(f"Composio {action} request failed: {exc}") from exc
+
+
 def _infer_instagram_publish_arguments(
     schema: dict[str, Any] | None,
     *,
@@ -266,6 +306,24 @@ def _infer_instagram_publish_arguments(
     if ig_user_id and not any(str(k).lower() in {"ig_user_id", "instagram_user_id"} for k in args.keys()):
         args["ig_user_id"] = ig_user_id
 
+    # Video containers can legitimately need longer processing time before publish.
+    props = properties if isinstance(properties, dict) else {}
+    wait_raw = (os.getenv("COMPOSIO_INSTAGRAM_MAX_WAIT_SECONDS") or "180").strip()
+    poll_raw = (os.getenv("COMPOSIO_INSTAGRAM_POLL_INTERVAL_SECONDS") or "3").strip()
+    try:
+        wait_val = max(60, min(300, int(wait_raw)))
+    except ValueError:
+        wait_val = 180
+    try:
+        poll_val = max(1, min(30, int(poll_raw)))
+    except ValueError:
+        poll_val = 3
+
+    if "max_wait_seconds" in props and "max_wait_seconds" not in args:
+        args["max_wait_seconds"] = wait_val
+    if "poll_interval_seconds" in props and "poll_interval_seconds" not in args:
+        args["poll_interval_seconds"] = poll_val
+
     return args
 
 
@@ -287,12 +345,16 @@ async def execute_publish_via_composio(*, platform: str, caption: str, video_url
         f"Video URL: {video_url or 'none'}"
     )
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
+    timeout_seconds = _resolve_timeout_seconds()
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
         # 1) Create a session
-        session_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
+        session_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
             headers=_headers(api_key),
-            json={"user_id": user_id},
+            payload={"user_id": user_id},
+            action="session creation",
         )
         if session_res.status_code >= 400:
             raise ComposioExecutionError(
@@ -306,17 +368,29 @@ async def execute_publish_via_composio(*, platform: str, caption: str, video_url
         # 2) Resolve tool slug (from env override or search)
         tool_slug = fixed_tool_slug
         search_json: dict[str, Any] = {}
-        if not tool_slug:
-            search_res = await client.post(
-                f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/search",
+        if not tool_slug or platform == "instagram":
+            search_res = await _post_json(
+                client,
+                url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/search",
                 headers=_headers(api_key),
-                json={"queries": [{"use_case": use_case}]},
+                payload={"queries": [{"use_case": use_case}]},
+                action="tool search",
             )
             if search_res.status_code >= 400:
                 raise ComposioExecutionError(
                     f"Composio tool search failed ({search_res.status_code}): {search_res.text[:300]}"
                 )
             search_json = search_res.json()
+
+        if platform == "instagram":
+            create_slug = _pick_instagram_create_slug(search_json)
+            if tool_slug:
+                if "PUBLISH" in tool_slug.upper() and create_slug:
+                    tool_slug = create_slug
+            elif create_slug:
+                tool_slug = create_slug
+
+        if not tool_slug:
             tool_slug = _pick_tool_slug(search_json)
 
         if not tool_slug:
@@ -366,10 +440,12 @@ async def execute_publish_via_composio(*, platform: str, caption: str, video_url
             execute_payload["account"] = account_override
 
         # 3) Execute
-        exec_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/execute",
+        exec_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/execute",
             headers=_headers(api_key),
-            json=execute_payload,
+            payload=execute_payload,
+            action=f"execute ({tool_slug})",
         )
         if exec_res.status_code >= 400:
             raise ComposioExecutionError(
@@ -390,11 +466,18 @@ async def execute_publish_via_composio(*, platform: str, caption: str, video_url
             extra = ""
             if "ig_user_id" in execution_error:
                 extra = " Set COMPOSIO_INSTAGRAM_IG_USER_ID (or INSTAGRAM_USER_ID) in backend/.env."
+            if platform == "instagram" and "creation_id" in execution_error:
+                extra = (
+                    " Instagram publish tool requires media container creation first. "
+                    "Leave COMPOSIO_INSTAGRAM_TOOL_SLUG blank or set it to INSTAGRAM_POST_IG_USER_MEDIA."
+                )
             raise ComposioExecutionError(f"Composio execution error: {execution_error}.{extra}".strip())
 
         # Instagram often requires a 2-step flow: create container, then publish container.
         if platform == "instagram":
             publish_slug = _pick_instagram_publish_slug(search_json)
+            if fixed_tool_slug and "PUBLISH" in fixed_tool_slug.upper():
+                publish_slug = fixed_tool_slug
             if publish_slug and publish_slug.upper() != tool_slug.upper():
                 creation_id = _first_non_empty(
                     data.get("creation_id"),
@@ -434,10 +517,12 @@ async def execute_publish_via_composio(*, platform: str, caption: str, video_url
                 if account_override:
                     publish_payload["account"] = account_override
 
-                publish_res = await client.post(
-                    f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/execute",
+                publish_res = await _post_json(
+                    client,
+                    url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/execute",
                     headers=_headers(api_key),
-                    json=publish_payload,
+                    payload=publish_payload,
+                    action=f"publish execute ({publish_slug})",
                 )
                 if publish_res.status_code >= 400:
                     raise ComposioExecutionError(
@@ -515,11 +600,15 @@ async def get_toolkit_connection_status(*, toolkit: str) -> dict[str, Any]:
 
     use_case = f"Publish a {tk} post with caption and video"
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
-        session_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
+    timeout_seconds = _resolve_timeout_seconds()
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        session_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
             headers=_headers(api_key),
-            json={"user_id": user_id},
+            payload={"user_id": user_id},
+            action="session creation",
         )
         if session_res.status_code >= 400:
             raise ComposioExecutionError(
@@ -529,10 +618,12 @@ async def get_toolkit_connection_status(*, toolkit: str) -> dict[str, Any]:
         if not session_id:
             raise ComposioExecutionError("Composio session_id missing from create session response.")
 
-        search_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/search",
+        search_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/search",
             headers=_headers(api_key),
-            json={"queries": [{"use_case": use_case}]},
+            payload={"queries": [{"use_case": use_case}]},
+            action="tool search",
         )
         if search_res.status_code >= 400:
             raise ComposioExecutionError(
@@ -570,11 +661,15 @@ async def create_toolkit_connect_link(*, toolkit: str, callback_url: str | None 
     if not tk:
         raise ComposioExecutionError("Toolkit is required.")
 
-    async with httpx.AsyncClient(timeout=45.0) as client:
-        session_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
+    timeout_seconds = _resolve_timeout_seconds()
+
+    async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        session_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session",
             headers=_headers(api_key),
-            json={"user_id": user_id},
+            payload={"user_id": user_id},
+            action="session creation",
         )
         if session_res.status_code >= 400:
             raise ComposioExecutionError(
@@ -588,10 +683,12 @@ async def create_toolkit_connect_link(*, toolkit: str, callback_url: str | None 
         if callback_url:
             body["callback_url"] = callback_url
 
-        link_res = await client.post(
-            f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/link",
+        link_res = await _post_json(
+            client,
+            url=f"{COMPOSIO_BASE_URL}/api/v3/tool_router/session/{session_id}/link",
             headers=_headers(api_key),
-            json=body,
+            payload=body,
+            action=f"connect link ({tk})",
         )
         if link_res.status_code >= 400:
             raise ComposioExecutionError(

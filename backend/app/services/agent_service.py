@@ -1,6 +1,11 @@
 import os
 import json
 from typing import TypedDict, List, Dict, Any
+from urllib.parse import quote_plus
+import xml.etree.ElementTree as ET
+import re
+
+import httpx
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
@@ -21,8 +26,43 @@ class AgentState(TypedDict):
 def get_llm():
     return ChatGroq(temperature=0.7, model_name="llama-3.3-70b-versatile")
 
+
+def _get_tavily_api_key() -> str:
+    raw = os.environ.get("TAVILY_API_KEY") or os.environ.get("TAVILY_KEY") or ""
+    return raw.strip().strip('"').strip("'")
+
+
 def get_tavily_client():
-    return AsyncTavilyClient(api_key=os.environ.get("TAVILY_API_KEY", ""))
+    return AsyncTavilyClient(api_key=_get_tavily_api_key())
+
+
+def _strip_html(text: str) -> str:
+    if not text:
+        return ""
+    return re.sub(r"<[^>]+>", "", text).strip()
+
+
+async def _search_google_news_rss(query: str, max_results: int = 3) -> str:
+    rss_url = f"https://news.google.com/rss/search?q={quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+
+    async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+        response = await client.get(rss_url)
+        response.raise_for_status()
+
+    root = ET.fromstring(response.text)
+    items = root.findall("./channel/item")[:max_results]
+    results_text = []
+
+    for item in items:
+        title = (item.findtext("title") or "Untitled").strip()
+        link = (item.findtext("link") or "#").strip()
+        description = _strip_html(item.findtext("description") or "")
+        if not description:
+            description = "Latest market update relevant to your query."
+
+        results_text.append(f"### {title}\n{description}\n\n**Source:** [{link}]({link})")
+
+    return "\n\n---\n\n".join(results_text)
 
 # Nodes
 async def onboarding_node(state: AgentState):
@@ -53,25 +93,40 @@ async def onboarding_node(state: AgentState):
     return {"target_audience": target_audience, "keywords": keywords}
 
 async def research_node(state: AgentState):
-    client = get_tavily_client()
     keywords = state.get("keywords", [])
+    company = state.get("company_description", "")
+    social_goal = state.get("social_goal", "")
+    query = " ".join(keywords[:2]).strip()
+    if not query:
+        query = f"{company} {social_goal}".strip()
+    query = f"{query} current trends and news".strip()
     
     research_summary = ""
     try:
-        query = " ".join(keywords[:2]) + " current trends and news"
-        search_result = await client.search(query=query, search_depth="advanced", max_results=3)
-        
-        results_text = []
-        for result in search_result.get("results", []):
-            url = result.get('url', '#')
-            results_text.append(f"### {result['title']}\n{result['content']}\n\n**Source:** [{url}]({url})")
-        research_summary = "\n\n---\n\n".join(results_text)
+        tavily_key = _get_tavily_api_key()
+        if tavily_key:
+            client = get_tavily_client()
+            search_result = await client.search(query=query, search_depth="advanced", max_results=3)
+
+            results_text = []
+            for result in search_result.get("results", []):
+                url = result.get("url", "#")
+                title = result.get("title", "Untitled")
+                content = result.get("content", "")
+                results_text.append(f"### {title}\n{content}\n\n**Source:** [{url}]({url})")
+            research_summary = "\n\n---\n\n".join(results_text)
     except Exception as e:
-        research_summary = f"Could not fetch live research. Error: {str(e)}"
-        
+        print(f"[research] Tavily search failed: {e}")
+
     if not research_summary:
-        research_summary = "No significant trends found."
-        
+        try:
+            research_summary = await _search_google_news_rss(query=query, max_results=3)
+        except Exception as e:
+            print(f"[research] RSS fallback failed: {e}")
+
+    if not research_summary:
+        research_summary = "Live research is temporarily unavailable. Continuing with strategy based on your business context."
+
     return {"research_data": research_summary}
 
 async def strategist_node(state: AgentState):
