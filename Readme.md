@@ -19,6 +19,10 @@ A uniquely crafted landing experience featuring a high-tech aesthetic, dynamic n
 Interact directly with your analytics and Socials AI via WhatsApp. Powered by Twilio, the D9THC Agent allows you to request insights, generate post ideas, and execute publishing commands right from your phone.
 ![WhatsApp Agent - D9THC](assets/whatsapp-agent_dashboard.jpeg)
 
+**Live WhatsApp Chat with D9THC Agent**
+A real conversation with the D9THC Agent over WhatsApp — asking for insights, getting AI-generated responses, and triggering social actions entirely through natural language messaging.
+![WhatsApp Chat with D9THC Agent](assets/Whatsapp-agent.png)
+
 ### 3. Socials Analytics Center
 **User Dashboard**
 Consolidated cross-platform data management. Track real-time engagement and audience metrics simultaneously across LinkedIn, Instagram, X (Twitter), and YouTube.
