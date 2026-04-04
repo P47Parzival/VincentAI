@@ -19,6 +19,11 @@ import {
   fetchLinkedinAnalytics
 } from '../../services/analyticsApi';
 
+import instagramLogo from '../../assets/instagram.jpg';
+import youtubeLogo from '../../assets/youtube.jpg';
+import twitterLogo from '../../assets/twitter.png';
+import linkedinLogo from '../../assets/linkdin.png';
+
 const numberFormatter = new Intl.NumberFormat('en-US');
 
 const formatNumber = (value) => {
@@ -171,7 +176,7 @@ export default function Analytics() {
         }
       ];
     }
-    
+
     if (activePlatform === 'twitter') {
       return [
         {
@@ -208,7 +213,7 @@ export default function Analytics() {
         }
       ];
     }
-    
+
     return [
       {
         title: 'Connections',
@@ -288,14 +293,14 @@ export default function Analytics() {
     <div className="space-y-6 text-[#F0F0F0]">
       <div className="p-2 rounded-2xl bg-white/5 border border-white/10 shadow-[0_8px_30px_rgba(0,0,0,0.3)] backdrop-blur-md inline-flex gap-2">
         {[
-          { id: 'instagram', label: 'Instagram', icon: Camera },
-          { id: 'youtube', label: 'YouTube', icon: Video },
-          { id: 'twitter', label: 'X (Twitter)', icon: MessageSquare },
-          { id: 'linkedin', label: 'LinkedIn', icon: Briefcase }
+          { id: 'instagram', label: 'Instagram', img: instagramLogo },
+          { id: 'youtube', label: 'YouTube', img: youtubeLogo },
+          { id: 'twitter', label: 'X (Twitter)', img: twitterLogo },
+          { id: 'linkedin', label: 'LinkedIn', img: linkedinLogo }
         ].map((platform) => {
           const Icon = platform.icon;
           const isActive = activePlatform === platform.id;
-          
+
           let glowColor = 'rgba(255,61,110,0.1)';
           let activeBorder = 'border-[#FF3D6E]/20';
           let activeText = 'text-[#FF3D6E]';
@@ -322,13 +327,14 @@ export default function Analytics() {
             <button
               key={platform.id}
               onClick={() => setActivePlatform(platform.id)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${
-                isActive
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-medium transition-all ${isActive
                   ? `${activeBg} text-white border ${activeBorder} shadow-[0_0_16px_${glowColor}]`
                   : 'text-gray-400 hover:bg-white/5 border border-transparent hover:border-white/10'
-              }`}
+                }`}
             >
-              <Icon size={17} className={isActive ? activeText : ''} />
+              <div className={`w-[20px] h-[20px] rounded-[5px] flex items-center justify-center overflow-hidden shadow-sm ${!isActive ? 'opacity-75 grayscale-[30%]' : ''}`}>
+                <img src={platform.img} alt={platform.label} className="w-full h-full object-cover" />
+              </div>
               <span>{platform.label}</span>
             </button>
           );
@@ -532,46 +538,57 @@ export default function Analytics() {
                       const canRenderPreview = Boolean(previewUrl) && !isCorsRestrictedImageUrl(previewUrl);
 
                       return (
-                    <article
-                      key={item.id || item.videoId}
-                      className="p-4 rounded-2xl bg-white/5 border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-between gap-3 hover:bg-white/10 transition-colors backdrop-blur-md"
-                    >
-                      <div className="min-w-0 flex-1">
-                        {(activePlatform === 'instagram' || activePlatform === 'youtube') ? (
-                          <button
-                            type="button"
-                            onClick={() => openDetailPage(item)}
-                            className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white text-left hover:text-[#00F5FF] transition-colors underline-offset-4 hover:underline"
-                            title="Open detailed analysis"
-                          >
-                            {item.title || item.caption || 'Untitled'}
-                          </button>
-                        ) : (
-                          <p className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white">
-                            {item.title || item.caption || 'Untitled'}
-                          </p>
-                        )}
-                        <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">
-                          {item.media_type || 'VIDEO'}
-                          {item.publishedAt || item.timestamp
-                            ? ` • ${new Date(item.publishedAt || item.timestamp).toLocaleDateString()}`
-                            : ''}
-                        </p>
-                      </div>
-                      <div className="shrink-0">
-                        {canRenderPreview ? (
-                          <img
-                            src={previewUrl}
-                            alt="media preview"
-                            className="w-16 h-16 rounded-xl object-cover border border-white/10"
-                          />
-                        ) : (
-                          <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-500">
-                            {activePlatform === 'twitter' ? <MessageSquare size={18} /> : activePlatform === 'linkedin' ? <Briefcase size={18} /> : <Video size={18} />}
+                        <article
+                          key={item.id || item.videoId}
+                          className="p-4 rounded-2xl bg-white/5 border border-white/10 shadow-[0_4px_16px_rgba(0,0,0,0.2)] flex items-center justify-between gap-3 hover:bg-white/10 transition-colors backdrop-blur-md"
+                        >
+                          <div className="min-w-0 flex-1">
+                            {(activePlatform === 'instagram' || activePlatform === 'youtube') ? (
+                              <button
+                                type="button"
+                                onClick={() => openDetailPage(item)}
+                                className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white text-left hover:text-[#00F5FF] transition-colors underline-offset-4 hover:underline"
+                                title="Open detailed analysis"
+                              >
+                                {item.title || item.caption || 'Untitled'}
+                              </button>
+                            ) : (
+                              <p className="block w-full overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-white">
+                                {item.title || item.caption || 'Untitled'}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-400 mt-1 uppercase tracking-widest">
+                              {item.media_type || 'VIDEO'}
+                              {item.publishedAt || item.timestamp
+                                ? ` • ${new Date(item.publishedAt || item.timestamp).toLocaleDateString()}`
+                                : ''}
+                            </p>
                           </div>
-                        )}
-                      </div>
-                    </article>
+                          <div className="shrink-0">
+                            {canRenderPreview ? (
+                              <img
+                                src={previewUrl}
+                                alt="media preview"
+                                className="w-16 h-16 rounded-xl object-cover border border-white/10"
+                              />
+                            ) : (
+                              <div className="w-16 h-16 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center">
+                                <div className="w-[30px] h-[30px] rounded-lg overflow-hidden opacity-50 grayscale border border-white/10 shadow-sm">
+                                  <img 
+                                    src={
+                                      activePlatform === 'instagram' ? instagramLogo :
+                                      activePlatform === 'youtube' ? youtubeLogo :
+                                      activePlatform === 'twitter' ? twitterLogo :
+                                      linkedinLogo
+                                    } 
+                                    alt={activePlatform}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </article>
                       );
                     })()
                   ))
