@@ -10,6 +10,22 @@ const SOCIAL_PLATFORMS = [
     { id: 'facebook', label: 'Facebook', icon: ThumbsUp, accent: 'text-indigo-300 border-indigo-400/30 bg-indigo-500/10' },
 ];
 
+const AGENT_STEPS = [
+    { id: 'starting', label: 'Preparing Workspace', description: 'Setting up your creative session...' },
+    { id: 'onboarding', label: 'Understanding Brand', description: 'Learning your offer and tone...' },
+    { id: 'research', label: 'Reading Signals', description: 'Collecting what your audience cares about...' },
+    { id: 'strategist', label: 'Shaping Direction', description: 'Building the best angle for this post...' },
+    { id: 'copywriter', label: 'Writing Draft', description: 'Crafting clear, high-impact copy...' },
+];
+
+const VIDEO_PHASES = [
+    { text: 'Preparing your audio for the avatar...', progress: 12 },
+    { text: 'Syncing voice and on-screen delivery...', progress: 28 },
+    { text: 'Applying expressions and pacing...', progress: 46 },
+    { text: 'Composing visuals and scene style...', progress: 66 },
+    { text: 'Final quality pass and export...', progress: 86 },
+];
+
 export default function CreatePostAI() {
   const [description, setDescription] = useState('');
   const [goal, setGoal] = useState('');
@@ -23,8 +39,9 @@ export default function CreatePostAI() {
   const audioRef = useRef(null);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
   const [isVideoFinished, setIsVideoFinished] = useState(false);
-  const [videoLogs, setVideoLogs] = useState([]);
-  const logsEndRef = useRef({});
+    const [videoProgress, setVideoProgress] = useState(0);
+    const [videoPhase, setVideoPhase] = useState('');
+    const [videoTimeline, setVideoTimeline] = useState([]);
   const [editableDraft, setEditableDraft] = useState('');
   const [copied, setCopied] = useState(false);
     const [publishOptions, setPublishOptions] = useState(null);
@@ -189,7 +206,9 @@ export default function CreatePostAI() {
     setError(null);
     setIsFinished(false);
     setIsVideoFinished(false);
-    setVideoLogs([]);
+    setVideoProgress(0);
+    setVideoPhase('');
+    setVideoTimeline([]);
     setPublishResults({});
     setPublishError(null);
     
@@ -231,16 +250,13 @@ export default function CreatePostAI() {
     };
   };
 
-  const steps = [
-    { id: 'starting', label: 'Initializing' },
-    { id: 'onboarding', label: 'Analyzing Context' },
-    { id: 'research', label: 'Scraping Web' },
-    { id: 'strategist', label: 'Formulating Strategy' },
-    { id: 'copywriter', label: 'Drafting Copy' }
-  ];
+    const steps = AGENT_STEPS;
 
   const getStepIndex = (stepId) => steps.findIndex(s => s.id === stepId);
   const currentStepIndex = agentStep === 'done' ? steps.length : getStepIndex(agentStep);
+    const activeStepDescription = agentStep === 'done'
+        ? 'Your post is ready for review, voiceover, video, and publishing.'
+        : (steps.find((step) => step.id === agentStep)?.description || 'Preparing your post experience...');
 
   const generateAudio = async () => {
     if (!agentState.draft) return;
@@ -270,43 +286,34 @@ export default function CreatePostAI() {
   const generateVideo = () => {
     if (!agentState.draft) return;
     setIsGeneratingVideo(true);
-    setVideoLogs(["[SYSTEM] Connecting to Video Generation Cluster...", "[INFO] Initializing Avatar Model..."]);
-    
-    const logs = [
-        "Allocating RTX 4090 GPU resources...",
-        "Downloading generated audio baseline...",
-        "Mapping visemes to audio payload...",
-        "Rendering avatar base model (4K)...",
-        "Applying dynamic lip-sync keyframes...",
-        "Enhancing facial micro-expressions...",
-        "Baking scene lighting and background...",
-        "Compositing final video frames...",
-        "Finalizing export to mp4...",
-        "Done. Output ready."
-    ];
+    setIsVideoFinished(false);
+    setVideoProgress(4);
+    setVideoPhase('Preparing your video experience...');
+    setVideoTimeline(['Preparing your video experience...']);
     
     let step = 0;
     const interval = setInterval(() => {
-        if (step < logs.length) {
-            setVideoLogs(prev => {
-                const updated = [...prev, `[INFO] ${logs[step]}`];
-                // Scroll to bottom simulation handled via ref if needed
-                return updated;
-            });
+        if (step < VIDEO_PHASES.length) {
+            const phase = VIDEO_PHASES[step];
+            setVideoPhase(phase.text);
+            setVideoProgress(phase.progress);
+            setVideoTimeline((prev) => [...prev, phase.text]);
             step++;
         } else {
             clearInterval(interval);
+            setVideoProgress(100);
+            setVideoPhase('Your AI avatar video is ready.');
             setIsGeneratingVideo(false);
             setIsVideoFinished(true);
         }
-    }, 800);
+    }, 900);
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20 text-[#F0F0F0]">
       <div className="text-center mb-8">
         <h2 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-[#00F5FF] via-[#8B5CF6] to-[#FF3D6E] bg-clip-text text-transparent inline-block mb-4 tracking-tight pb-1 drop-shadow-lg" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>Multi-Agent Studio</h2>
-        <p className="text-gray-400 text-lg max-w-2xl mx-auto">Unleash an intelligent swarm of AI agents to research, strategize, and write hyper-optimized content for your brand.</p>
+                <p className="text-gray-400 text-lg max-w-2xl mx-auto">Create campaign-ready content in a guided flow, then publish in one click when you are happy with the result.</p>
       </div>
 
       {(!isGenerating && !isFinished) && (
@@ -344,7 +351,7 @@ export default function CreatePostAI() {
                disabled={!description || !goal}
                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-[#8B5CF6] to-[#FF3D6E] hover:from-[#8B5CF6]/90 hover:to-[#FF3D6E]/90 border border-white/10 disabled:opacity-50 text-white font-bold py-5 rounded-2xl shadow-[0_0_24px_rgba(255,61,110,0.4)] transition-all text-xl group transform hover:scale-[1.01] active:scale-95" style={{ fontFamily: "'Clash Display', 'DM Sans', sans-serif" }}>
                <Zap size={24} fill="currentColor" className={(!description || !goal) ? "" : "group-hover:animate-pulse text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]"} />
-               Deploy AI Agents
+                             Create My Post
              </button>
            </div>
         </div>
@@ -364,6 +371,11 @@ export default function CreatePostAI() {
                         </div>
                     );
                 })}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0e0e0e]/70 px-5 py-4 text-sm text-gray-300 flex items-center gap-2">
+                {isGenerating ? <Loader2 size={15} className="animate-spin text-[#8B5CF6]" /> : <CheckCircle size={15} className="text-emerald-300" />}
+                <span>{activeStepDescription}</span>
             </div>
 
             {error && (
@@ -492,14 +504,27 @@ export default function CreatePostAI() {
                                         )}
 
                                         {isGeneratingVideo && (
-                                            <div className="bg-black/60 rounded-xl p-4 border border-white/10 font-mono text-[11px] md:text-xs text-[#00F5FF] h-40 overflow-y-auto leading-relaxed scroll-smooth flex flex-col justify-end shadow-inner">
-                                                <div className="space-y-1">
-                                                    {videoLogs.map((log, i) => (
-                                                        <div key={i} className="animate-in fade-in slide-in-from-bottom-1">{log}</div>
+                                            <div className="bg-black/50 rounded-2xl p-4 border border-white/10 shadow-inner space-y-4">
+                                                <div className="flex items-center justify-between text-xs uppercase tracking-wider text-gray-400">
+                                                    <span>Video Creation Progress</span>
+                                                    <span className="text-[#00F5FF] font-semibold">{videoProgress}%</span>
+                                                </div>
+                                                <div className="h-2 w-full rounded-full bg-white/10 overflow-hidden">
+                                                    <div
+                                                        className="h-full bg-gradient-to-r from-[#00F5FF] to-[#8B5CF6] transition-all duration-500"
+                                                        style={{ width: `${videoProgress}%` }}
+                                                    />
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-white">
+                                                    <Loader2 size={14} className="animate-spin text-[#00F5FF]" />
+                                                    <span>{videoPhase || 'Preparing your video...'}</span>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    {videoTimeline.slice(-3).map((entry, i) => (
+                                                        <div key={`${entry}-${i}`} className="text-xs text-gray-300 bg-white/5 border border-white/10 rounded-lg px-3 py-2">
+                                                            {entry}
+                                                        </div>
                                                     ))}
-                                                    <div className="flex items-center text-[#00F5FF] mt-2">
-                                                        <Loader2 size={12} className="animate-spin mr-2" /> Processing...
-                                                    </div>
                                                 </div>
                                             </div>
                                         )}

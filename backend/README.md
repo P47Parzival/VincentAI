@@ -26,6 +26,7 @@ cp .env.example .env
 ```
 
 Fill `.env` with your values.
+After changing any API key in `.env`, restart the backend process so new values are picked up.
 
 For YouTube:
 - `YOUTUBE_API_KEY` + `YOUTUBE_CHANNEL_ID` are used for channel/profile/recent videos.
