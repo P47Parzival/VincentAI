@@ -105,7 +105,7 @@ async def analyze_url(req: AnalyzeURLRequest):
             "instagram": "apify/instagram-scraper", # Changed from instagram-post-scraper to avoid explicit username dependency
             "youtube": "apify/youtube-scraper",
             "twitter": "quacker/twitter-scraper",
-            "linkedin": "curious_coder/linkedin-post-scraper"
+            "linkedin": "johnvc/linkedin-posts-api"
         }
         actor = actor_map.get(domain, "apify/web-scraper")
         actor_path = actor.replace("/", "~")
@@ -114,6 +114,8 @@ async def analyze_url(req: AnalyzeURLRequest):
             async with httpx.AsyncClient() as client:
                 # Provide multiple standard URL keys to ensure schema compliance across disparate actors
                 payload = {"startUrls": [{"url": req.url}], "directUrls": [req.url]}
+                if domain == "linkedin":
+                    payload = {"postUrls": [req.url]}
                 
                 res = await client.post(
                     f"https://api.apify.com/v2/acts/{actor_path}/run-sync-get-dataset-items",
@@ -123,6 +125,9 @@ async def analyze_url(req: AnalyzeURLRequest):
                 )
                 if res.status_code in (200, 201):
                     data = res.json()
+                    # Rows with error_message are failures reported by the actor, not posts
+                    errors = [item for item in data if item.get("error_message")]
+                    data = [item for item in data if not item.get("error_message")]
                     if len(data) > 0:
                         first_item = data[0]
                         # DEBUG: Log raw Apify response schema to help diagnose media extraction
@@ -134,8 +139,8 @@ async def analyze_url(req: AnalyzeURLRequest):
                         scraped_text = _re.sub(r'https?://\S+', '', scraped_text).strip()
                         
                         # Agnostic extraction of engagement metrics across multiple platforms
-                        likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", 0))))
-                        comments = first_item.get("commentsCount", first_item.get("commentCount", first_item.get("replies", first_item.get("reply_count", 0))))
+                        likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", first_item.get("numLikes", 0)))))
+                        comments = first_item.get("commentsCount", first_item.get("commentCount", first_item.get("replies", first_item.get("reply_count", first_item.get("numComments", 0)))))
                         
                         # Clean up types
                         try: likes = int(likes)
@@ -206,6 +211,9 @@ async def analyze_url(req: AnalyzeURLRequest):
                             if thumbnail_url:
                                 frame_thumbnails = [thumbnail_url, thumbnail_url, thumbnail_url]
                             print("[MEDIA DEBUG] thumbnail_url:", thumbnail_url, "video_url:", video_url)
+                    elif errors:
+                        scrape_error = f"Apify actor error: {errors[0]['error_message']}"
+                        print(scrape_error)
                     else:
                         scrape_error = "Apify returned an empty dataset []."
                         print(scrape_error)

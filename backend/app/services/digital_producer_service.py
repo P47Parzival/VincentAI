@@ -133,7 +133,7 @@ async def _scrape_social_url(url: str) -> dict[str, Any]:
         "instagram": "apify/instagram-scraper",
         "youtube": "apify/youtube-scraper",
         "twitter": "quacker/twitter-scraper",
-        "linkedin": "curious_coder/linkedin-post-scraper",
+        "linkedin": "johnvc/linkedin-posts-api",
         "web": "apify/web-scraper",
     }
 
@@ -141,6 +141,8 @@ async def _scrape_social_url(url: str) -> dict[str, Any]:
     actor_path = actor.replace("/", "~")
 
     payload = {"startUrls": [{"url": url}], "directUrls": [url]}
+    if domain == "linkedin":
+        payload = {"postUrls": [url]}
 
     scraped_text = ""
     likes = 0
@@ -166,6 +168,11 @@ async def _scrape_social_url(url: str) -> dict[str, Any]:
             data = []
         else:
             data = res.json()
+            # Rows with error_message are failures reported by the actor, not posts
+            errors = [item for item in data if item.get("error_message")]
+            data = [item for item in data if not item.get("error_message")]
+            if errors and not data:
+                apify_error = f"Apify actor error: {errors[0]['error_message']}"
         if data:
             first_item = data[0]
             scraped_text = first_item.get(
@@ -180,8 +187,8 @@ async def _scrape_social_url(url: str) -> dict[str, Any]:
             )
             scraped_text = html.unescape(str(scraped_text))
             scraped_text = re.sub(r"https?://\S+", "", scraped_text).strip()
-            likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", 0))))
-            comments = first_item.get("commentsCount", first_item.get("commentCount", first_item.get("replies", first_item.get("reply_count", 0))))
+            likes = first_item.get("likesCount", first_item.get("likeCount", first_item.get("likes", first_item.get("favorite_count", first_item.get("numLikes", 0)))))
+            comments = first_item.get("commentsCount", first_item.get("commentCount", first_item.get("replies", first_item.get("reply_count", first_item.get("numComments", 0)))))
             try:
                 likes = int(likes)
             except Exception:
